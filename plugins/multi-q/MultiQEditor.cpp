@@ -278,16 +278,21 @@ MultiQEditor::MultiQEditor(MultiQ& p)
         // Also update British mode display scale (uses equivalent enum)
         if (britishCurveDisplay)
             britishCurveDisplay->setDisplayScaleMode(static_cast<BritishDisplayScaleMode>(mode));
+        // Also update Pultec/Tube mode display scale
+        if (pultecCurveDisplay)
+            pultecCurveDisplay->setDisplayScaleMode(mode);
     };
     addAndMakeVisible(displayScaleSelector.get());
     displayScaleAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(
         processor.parameters, ParamIDs::displayScaleMode, *displayScaleSelector);
 
-    // Sync initial display scale mode for both Digital and British displays
+    // Sync initial display scale mode for all three mode displays
     auto initialMode = static_cast<DisplayScaleMode>(displayScaleSelector->getSelectedItemIndex());
     graphicDisplay->setDisplayScaleMode(initialMode);
     if (britishCurveDisplay)
         britishCurveDisplay->setDisplayScaleMode(static_cast<BritishDisplayScaleMode>(initialMode));
+    if (pultecCurveDisplay)
+        pultecCurveDisplay->setDisplayScaleMode(initialMode);
 
     // Sync initial analyzer visibility for both Digital and British mode displays
     auto* analyzerParam = processor.parameters.getRawParameterValue(ParamIDs::analyzerEnabled);
@@ -432,6 +437,26 @@ MultiQEditor::MultiQEditor(MultiQ& p)
     tubePresetSelector.onChange = [this]() { applyTubePreset(tubePresetSelector.getSelectedId()); };
     addAndMakeVisible(tubePresetSelector);
 
+    // Tube mode "Hide Graph" button (like British mode)
+    tubeCurveCollapseButton.setButtonText("Hide Graph");
+    tubeCurveCollapseButton.setColour(juce::TextButton::buttonColourId, juce::Colour(0xff3a3a3a));
+    tubeCurveCollapseButton.setColour(juce::TextButton::textColourOffId, juce::Colour(0xffa0a0a0));
+    tubeCurveCollapseButton.setTooltip("Show/Hide frequency response graph");
+    tubeCurveCollapseButton.onClick = [this]() {
+        pultecCurveCollapsed = !pultecCurveCollapsed;
+        tubeCurveCollapseButton.setButtonText(pultecCurveCollapsed ? "Show Graph" : "Hide Graph");
+
+        // Toggle curve display visibility
+        if (pultecCurveDisplay)
+            pultecCurveDisplay->setVisible(!pultecCurveCollapsed && isPultecMode);
+
+        // Resize the window to match 4K-EQ behavior (smaller window when collapsed)
+        int newHeight = pultecCurveCollapsed ? 530 : 640;
+        setSize(getWidth(), newHeight);
+    };
+    tubeCurveCollapseButton.setVisible(false);
+    addAndMakeVisible(tubeCurveCollapseButton);
+
     tubeHqButton = std::make_unique<juce::ToggleButton>("HQ");
     tubeHqButton->setColour(juce::TextButton::buttonColourId, juce::Colour(0xff3a5058));
     tubeHqButton->setColour(juce::TextButton::textColourOffId, juce::Colour(0xffe0e0e0));
@@ -531,9 +556,11 @@ void MultiQEditor::paint(juce::Graphics& g)
         g.setColour(juce::Colour(0xff3a4a50));
         g.fillRect(0, 87, bounds.getWidth(), 1);
 
-        // Dark blue-gray background for content area (below toolbar)
+        // Content area fill - blue-gray theme for Tube mode
+        // Starts below curve (y=193 = 88+105) or below toolbar (y=88) when collapsed
+        int contentY = pultecCurveCollapsed ? 88 : 193;
         g.setColour(juce::Colour(0xff31444b));
-        g.fillRect(0, 88, bounds.getWidth(), bounds.getHeight() - 88);
+        g.fillRect(0, contentY, bounds.getWidth(), bounds.getHeight() - contentY);
     }
     else if (isBritishMode)
     {
@@ -556,7 +583,8 @@ void MultiQEditor::paint(juce::Graphics& g)
     {
         // ===== PULTEC MODE PAINT - SECTION DIVIDERS =====
         // Calculate positions based on layout (must match layoutPultecControls)
-        const int headerHeight = 88;  // 50px header + 38px toolbar
+        // headerHeight: 88px base when curve collapsed, 215px when curve visible (below meters)
+        const int headerHeight = pultecCurveCollapsed ? 88 : 215;
         const int labelHeight = 22;
         const int knobSize = 105;            // Must match layoutPultecControls
         const int smallKnobSize = 90;        // Row 3 knobs
@@ -576,9 +604,12 @@ void MultiQEditor::paint(juce::Graphics& g)
         int row2Y = row1Y + row1Height + rowGap;
         int row3Y = row2Y + row2Height + rowGap;
 
-        int mainWidth = getWidth() - rightPanelWidth;
-        int lineStartX = 40;
-        int lineEndX = mainWidth - 30;
+        // Match the LED clearance margins from layoutPultecControls
+        int leftLedClearance = 55;
+        int rightLedClearance = 55;
+        int mainWidth = getWidth() - rightPanelWidth - rightLedClearance;
+        int lineStartX = leftLedClearance + 5;  // Start just inside the left content area
+        int lineEndX = mainWidth - 10;          // End before the right panel divider
 
         // ===== SEPARATOR LINES FOR FREQUENCY ROW (Row 2) =====
         // Draw horizontal separator lines above and below the frequency row
@@ -596,18 +627,35 @@ void MultiQEditor::paint(juce::Graphics& g)
         g.drawLine(static_cast<float>(lineStartX), static_cast<float>(separatorBelowY),
                    static_cast<float>(lineEndX), static_cast<float>(separatorBelowY), 1.0f);
 
-        // Right panel vertical divider
+        // Right panel vertical divider - position at the start of the right panel area
+        int rightPanelX = getWidth() - rightPanelWidth - rightLedClearance;
         g.setColour(juce::Colour(0x40000000));
-        g.fillRect(mainWidth - 5, headerHeight + 20, 1, getHeight() - headerHeight - 40);
+        g.fillRect(rightPanelX - 5, headerHeight + 20, 1, getHeight() - headerHeight - 40);
         g.setColour(juce::Colour(0x30ffffff));
-        g.fillRect(mainWidth - 4, headerHeight + 20, 1, getHeight() - headerHeight - 40);
+        g.fillRect(rightPanelX - 4, headerHeight + 20, 1, getHeight() - headerHeight - 40);
 
         // "MID DIP/PEAK" section label - draw above the mid section
+        // Use leftLedClearance + small offset to clear LED meter area
         g.setFont(juce::Font(juce::FontOptions(12.0f).withStyle("Bold")));
         g.setColour(juce::Colour(0xff70b0d0));  // Teal accent
-        g.drawText("MID DIP/PEAK", 55, separatorBelowY + 8, 150, 16, juce::Justification::left);
+        g.drawText("MID DIP/PEAK", leftLedClearance + 5, separatorBelowY + 8, 150, 16, juce::Justification::left);
 
-        // Footer removed - plugin name already shown in header
+        // Draw meter labels (INPUT / OUTPUT) like 4K-EQ and British mode
+        if (inputMeter)
+        {
+            float inL = processor.inputLevelL.load();
+            float inR = processor.inputLevelR.load();
+            float inputLevel = juce::jmax(inL, inR);
+            LEDMeterStyle::drawMeterLabels(g, inputMeter->getBounds(), "INPUT", inputLevel);
+        }
+
+        if (outputMeter)
+        {
+            float outL = processor.outputLevelL.load();
+            float outR = processor.outputLevelR.load();
+            float outputLevel = juce::jmax(outL, outR);
+            LEDMeterStyle::drawMeterLabels(g, outputMeter->getBounds(), "OUTPUT", outputLevel);
+        }
     }
     else if (isBritishMode)
     {
@@ -663,28 +711,10 @@ void MultiQEditor::paint(juce::Graphics& g)
         g.drawText("HF", hmfEnd + 2, labelY, sectionWidth - 2, 20, juce::Justification::centred);
         g.drawText("MASTER", hfEnd + 2, labelY, contentRight - hfEnd - 2, 20, juce::Justification::centred);
 
-        // Draw meter labels (INPUT / OUTPUT) like 4K-EQ
-        if (inputMeter)
-        {
-            // Get current levels for display
-            float inL = processor.inputLevelL.load();
-            float inR = processor.inputLevelR.load();
-            float inputLevel = juce::jmax(inL, inR);
-            LEDMeterStyle::drawMeterLabels(g, inputMeter->getBounds(), "INPUT", inputLevel);
-        }
-
-        if (outputMeter)
-        {
-            float outL = processor.outputLevelL.load();
-            float outR = processor.outputLevelR.load();
-            float outputLevel = juce::jmax(outL, outR);
-            LEDMeterStyle::drawMeterLabels(g, outputMeter->getBounds(), "OUTPUT", outputLevel);
-        }
-
         // Draw tick marks and value labels around knobs (SSL style)
         drawBritishKnobMarkings(g);
 
-        // Knob labels are drawn in paintOverChildren() to ensure they appear on top
+        // Knob labels and meter labels are drawn in paintOverChildren() to ensure they appear on top of the curve
     }
     else
     {
@@ -712,11 +742,22 @@ void MultiQEditor::paint(juce::Graphics& g)
         g.fillRect(leftMeterArea);
         g.fillRect(rightMeterArea);
 
-        // ===== METER LABELS (inside meter area, at top) =====
-        g.setFont(juce::Font(juce::FontOptions(9.0f).withStyle("Bold")));
-        g.setColour(juce::Colour(0xFF808088));
-        g.drawText("IN", leftMeterArea.getX(), toolbarHeight + 3, meterAreaWidth, 14, juce::Justification::centred);
-        g.drawText("OUT", rightMeterArea.getX(), toolbarHeight + 3, meterAreaWidth, 14, juce::Justification::centred);
+        // ===== METER LABELS (using standardized LEDMeterStyle) =====
+        if (inputMeter)
+        {
+            float inL = processor.inputLevelL.load();
+            float inR = processor.inputLevelR.load();
+            float inputLevel = juce::jmax(inL, inR);
+            LEDMeterStyle::drawMeterLabels(g, inputMeter->getBounds(), "INPUT", inputLevel);
+        }
+
+        if (outputMeter)
+        {
+            float outL = processor.outputLevelL.load();
+            float outR = processor.outputLevelR.load();
+            float outputLevel = juce::jmax(outL, outR);
+            LEDMeterStyle::drawMeterLabels(g, outputMeter->getBounds(), "OUTPUT", outputLevel);
+        }
     }
 
     // Separator line only for digital mode
@@ -830,6 +871,23 @@ void MultiQEditor::paintOverChildren(juce::Graphics& g)
         // MASTER section
         drawLabelBelow(britishSaturationSlider.get(), "DRIVE");
         drawLabelBelow(britishOutputGainSlider.get(), "OUTPUT");
+
+        // Draw meter labels ON TOP of the edge-to-edge curve display
+        if (inputMeter)
+        {
+            float inL = processor.inputLevelL.load();
+            float inR = processor.inputLevelR.load();
+            float inputLevel = juce::jmax(inL, inR);
+            LEDMeterStyle::drawMeterLabels(g, inputMeter->getBounds(), "INPUT", inputLevel);
+        }
+
+        if (outputMeter)
+        {
+            float outL = processor.outputLevelL.load();
+            float outR = processor.outputLevelR.load();
+            float outputLevel = juce::jmax(outL, outR);
+            LEDMeterStyle::drawMeterLabels(g, outputMeter->getBounds(), "OUTPUT", outputLevel);
+        }
     }
 }
 
@@ -847,21 +905,47 @@ void MultiQEditor::resized()
 
     if (isPultecMode)
     {
-        // ===== VINTAGE PULTEC MODE LAYOUT =====
+        // ===== TUBE/PULTEC MODE LAYOUT =====
+        // Matches 4K-EQ layout pattern for consistency
         // Toolbar is handled by layoutUnifiedToolbar() above
-        // Just layout Pultec-specific controls here
-        layoutPultecControls();
 
         // Hide the tube HQ button (replaced by global oversampling selector)
         if (tubeHqButton)
             tubeHqButton->setVisible(false);
 
-        // Hide meters in Pultec mode (cleaner vintage look)
-        inputMeter->setVisible(false);
-        outputMeter->setVisible(false);
-
         // Hide Digital mode toolbar controls in Pultec mode
         hqButton->setVisible(false);
+
+        // Calculate curve display dimensions based on collapsed state
+        // Curve starts below toolbar (y=88) and is 105px tall (matching 4K-EQ style)
+        int curveY = 88;
+        int curveHeight = pultecCurveCollapsed ? 0 : 105;
+
+        // Position and show/hide Pultec EQ curve display
+        // Graph extends edge-to-edge for maximum visual impact
+        if (pultecCurveDisplay)
+        {
+            if (!pultecCurveCollapsed)
+            {
+                pultecCurveDisplay->setBounds(0, curveY, getWidth(), curveHeight);
+                pultecCurveDisplay->setVisible(true);
+            }
+            else
+            {
+                pultecCurveDisplay->setVisible(false);
+            }
+        }
+
+        // LED Meters - position below curve area (matching 4K-EQ)
+        // meterY: 215 when curve visible (gives 15px margin below curve), 95 when collapsed
+        int meterY = pultecCurveCollapsed ? 95 : 215;
+        int meterWidth = LEDMeterStyle::standardWidth;
+        int meterHeight = getHeight() - meterY - LEDMeterStyle::valueHeight - LEDMeterStyle::labelSpacing - 10;
+        inputMeter->setBounds(6, meterY, meterWidth, meterHeight);
+        outputMeter->setBounds(getWidth() - meterWidth - 10, meterY, meterWidth, meterHeight);
+
+        // Layout Pultec-specific controls (knobs) - starts below curve area
+        layoutPultecControls();
     }
     else if (isBritishMode)
     {
@@ -878,11 +962,10 @@ void MultiQEditor::resized()
         int curveY = 88;
 
         // Position British EQ curve display
+        // Graph extends edge-to-edge for maximum visual impact
         if (britishCurveDisplay && !britishCurveCollapsed)
         {
-            int curveX = 35;
-            int curveWidth = getWidth() - 70;
-            britishCurveDisplay->setBounds(curveX, curveY, curveWidth, curveHeight);
+            britishCurveDisplay->setBounds(0, curveY, getWidth(), curveHeight);
         }
 
         // Adjust meter and content positions based on curve visibility
@@ -1861,13 +1944,13 @@ void MultiQEditor::updateEQModeVisibility()
     if (britishCurveDisplay)
         britishCurveDisplay->setVisible(isBritishMode && !britishCurveCollapsed);
 
-    // Pultec mode curve display - always hidden in vintage layout
+    // Pultec mode curve display (visible if Pultec mode and not collapsed)
     if (pultecCurveDisplay)
-        pultecCurveDisplay->setVisible(false);
+        pultecCurveDisplay->setVisible(isPultecMode && !pultecCurveCollapsed);
 
-    // Meter visibility - hide in Pultec mode for clean vintage look
-    inputMeter->setVisible(!isPultecMode);
-    outputMeter->setVisible(!isPultecMode);
+    // Meter visibility - visible in all modes for consistency
+    inputMeter->setVisible(true);
+    outputMeter->setVisible(true);
 
     // Also hide slope controls if switching away from Digital mode
     if (!isDigitalMode)
@@ -1905,7 +1988,7 @@ void MultiQEditor::updateEQModeVisibility()
 
     // British mode header/master controls
     britishBypassButton->setVisible(isBritishMode);
-    britishAutoGainButton->setVisible(isBritishMode);
+    britishAutoGainButton->setVisible(false);  // Using shared autoGainButton in toolbar instead
 
     // NOTE: British A/B, preset selector, curve collapse button visibility
     // is handled by layoutUnifiedToolbar() - DO NOT set visibility here!
@@ -2075,17 +2158,23 @@ void MultiQEditor::layoutUnifiedToolbar()
 
     if (isPultecMode)
     {
-        // Tube mode: A/B and Preset selectors (left-aligned below EQ type selector)
+        // Tube mode: A/B, Preset selectors, and Hide Graph button (left-aligned below EQ type selector)
         tubeAbButton.setBounds(15, toolbarY, 28, controlHeight);
         tubeAbButton.setVisible(true);
         tubePresetSelector.setBounds(48, toolbarY, 150, controlHeight);
         tubePresetSelector.setVisible(true);
+        tubeCurveCollapseButton.setBounds(203, toolbarY, 85, controlHeight);
+        tubeCurveCollapseButton.setVisible(true);
 
-        // Hide Digital-specific controls
+        // Auto Gain button - show on right side of toolbar (consistent across all modes)
+        int rightSectionEnd = getWidth() - scaleOffset - 5;
+        autoGainButton->setBounds(rightSectionEnd - 75, toolbarY, 72, controlHeight);
+        autoGainButton->setVisible(true);
+
+        // Hide other Digital-specific controls
         digitalAbButton.setVisible(false);
         presetSelector->setVisible(false);
         processingModeSelector->setVisible(false);
-        autoGainButton->setVisible(false);
         linearPhaseButton->setVisible(false);
         linearPhaseQualitySelector->setVisible(false);
         savePresetButton.setVisible(false);
@@ -2097,6 +2186,7 @@ void MultiQEditor::layoutUnifiedToolbar()
         britishPresetSelector.setVisible(false);
         britishCurveCollapseButton.setVisible(false);
         britishModeButton->setVisible(false);
+        britishAutoGainButton->setVisible(false);  // Use shared autoGainButton instead
     }
     else if (isBritishMode)
     {
@@ -2112,11 +2202,15 @@ void MultiQEditor::layoutUnifiedToolbar()
         britishModeButton->setBounds(getWidth() - 400, toolbarY, 70, controlHeight);
         britishModeButton->setVisible(true);
 
+        // Auto Gain button - show on right side of toolbar (consistent across all modes)
+        int rightSectionEnd = getWidth() - scaleOffset - 5;
+        autoGainButton->setBounds(rightSectionEnd - 75, toolbarY, 72, controlHeight);
+        autoGainButton->setVisible(true);
+
         // Hide Digital-specific controls
         digitalAbButton.setVisible(false);
         presetSelector->setVisible(false);
         processingModeSelector->setVisible(false);
-        autoGainButton->setVisible(false);
         linearPhaseButton->setVisible(false);
         linearPhaseQualitySelector->setVisible(false);
         savePresetButton.setVisible(false);
@@ -2126,6 +2220,7 @@ void MultiQEditor::layoutUnifiedToolbar()
         // Hide Tube-specific controls
         tubeAbButton.setVisible(false);
         tubePresetSelector.setVisible(false);
+        tubeCurveCollapseButton.setVisible(false);
     }
     else
     {
@@ -2168,6 +2263,7 @@ void MultiQEditor::layoutUnifiedToolbar()
         // Hide Tube-specific controls
         tubeAbButton.setVisible(false);
         tubePresetSelector.setVisible(false);
+        tubeCurveCollapseButton.setVisible(false);
     }
 }
 
@@ -2772,13 +2868,17 @@ void MultiQEditor::layoutPultecControls()
     auto bounds = getLocalBounds();
 
     // ===== TUBE MODE LAYOUT =====
+    // Header height depends on whether curve display is visible
+    // When curve is visible, controls start lower to accommodate the graph
     // Reorganized layout per user request:
     // - Row 1: [LF BOOST] [LF ATTEN] [HF BOOST] [HF ATTEN]
     // - Row 2: Frequency row with separator lines: [LF FREQ] [HF BANDWIDTH] [HF FREQ] [ATTEN FREQ]
     // - Row 3: MID DIP/PEAK section
     // - Right panel: INPUT → OUTPUT → TUBE DRIVE (vertical signal flow)
 
-    const int headerHeight = 88;  // 50px header + 38px toolbar
+    // headerHeight: 88px base (50px header + 38px toolbar)
+    // When curve is visible, add 127px (105px curve + 15px margin + 7px buffer) to push controls below meters
+    const int headerHeight = pultecCurveCollapsed ? 88 : 215;
     const int labelHeight = 22;         // Height for knob labels
     const int knobSize = 105;           // Main knobs
     const int smallKnobSize = 90;       // Row 3 knobs (mid section)
@@ -2787,9 +2887,13 @@ void MultiQEditor::layoutPultecControls()
     const int bottomMargin = 35;        // Margin at bottom for footer
     const int rightPanelWidth = 125;    // Right side panel for INPUT/OUTPUT/DRIVE
 
-    // Margins - leave space for right panel
-    int mainX = 30;
-    int mainWidth = bounds.getWidth() - 60 - rightPanelWidth;
+    // Margins - leave space for LED meters on left/right and right panel
+    // LED meters are ~50px wide each (32px meter + spacing + L/R labels)
+    // Must ensure NO controls overlap with LED meter areas
+    int leftLedClearance = 55;   // Clear left LED meter completely
+    int rightLedClearance = 55;  // Clear right LED meter completely
+    int mainX = leftLedClearance;
+    int mainWidth = bounds.getWidth() - leftLedClearance - rightPanelWidth - rightLedClearance - 10;
 
     // Calculate row heights
     // Row 1: 4 gain knobs with labels below
@@ -2871,17 +2975,17 @@ void MultiQEditor::layoutPultecControls()
     // ============== ROW 3: MID DIP/PEAK SECTION (6 controls + IN toggle) ==============
     int row3Y = row2Y + row2Height + rowGap;
 
-    // IN toggle button on the left
+    // IN toggle button on the left - keep within safe area (no overlap with left LED)
     int inButtonWidth = 45;
     int inButtonHeight = 40;
-    int inButtonX = mainX - 10;
+    int inButtonX = mainX;  // Start at safe margin, not outside it
     int inButtonY = row3Y + (smallKnobSize - inButtonHeight) / 2;
     if (pultecMidEnabledButton)
         pultecMidEnabledButton->setBounds(inButtonX, inButtonY, inButtonWidth, inButtonHeight);
 
     // 6 controls evenly spaced after the IN button
-    int midAreaX = mainX + inButtonWidth + 5;
-    int midAreaWidth = mainWidth - inButtonWidth - 5;
+    int midAreaX = mainX + inButtonWidth + 10;
+    int midAreaWidth = mainWidth - inButtonWidth - 10;
     int midKnobSpacing = (midAreaWidth - 6 * smallKnobSize) / 7;
 
     // Dropdown width for frequency selectors
@@ -2944,7 +3048,8 @@ void MultiQEditor::layoutPultecControls()
 
     // ============== RIGHT SIDE PANEL: INPUT → OUTPUT → TUBE DRIVE ==============
     // Vertical signal flow: INPUT at top, OUTPUT in middle, TUBE DRIVE at bottom
-    int rightPanelX = bounds.getWidth() - rightPanelWidth;
+    // Position panel to leave clear space for right LED meter (55px clearance)
+    int rightPanelX = bounds.getWidth() - rightPanelWidth - rightLedClearance;
     int rightKnobSize = 85;  // Knob size for right panel
     int rightSpacing = 12;   // Spacing between knobs
     int totalRightHeight = 3 * rightKnobSize + 2 * rightSpacing + 3 * labelHeight;
@@ -2976,9 +3081,7 @@ void MultiQEditor::layoutPultecControls()
     pultecHfBoostLabel.setVisible(false);
     pultecHfAttenLabel.setVisible(false);
 
-    // Hide curve display (not used in Tube layout)
-    if (pultecCurveDisplay)
-        pultecCurveDisplay->setVisible(false);
+    // Note: pultecCurveDisplay visibility is managed in resized() based on pultecCurveCollapsed state
 }
 
 //==============================================================================
@@ -3275,6 +3378,10 @@ void MultiQEditor::setupDynamicControls()
     // Range slider (0 to 24 dB)
     setupDynSlider(dynRangeSlider, "dyn_range", " dB", 0.0, 24.0, 12.0);
 
+    // Ratio slider (1:1 to 20:1)
+    setupDynSlider(dynRatioSlider, "dyn_ratio", ":1", 1.0, 20.0, 4.0);
+    dynRatioSlider->setSkewFactorFromMidPoint(4.0);  // More resolution for lower ratios
+
     // Section label (compact)
     dynSectionLabel.setText("DYN", juce::dontSendNotification);
     dynSectionLabel.setJustificationType(juce::Justification::centred);
@@ -3288,6 +3395,7 @@ void MultiQEditor::setupDynamicControls()
     setupDynLabel(dynAttackLabel, "At");
     setupDynLabel(dynReleaseLabel, "Re");
     setupDynLabel(dynRangeLabel, "Rn");
+    setupDynLabel(dynRatioLabel, "Ra");
 }
 
 void MultiQEditor::layoutDynamicControls()
@@ -3307,6 +3415,8 @@ void MultiQEditor::layoutDynamicControls()
     dynReleaseSlider->setVisible(false);
     dynRangeLabel.setVisible(false);
     dynRangeSlider->setVisible(false);
+    dynRatioLabel.setVisible(false);
+    dynRatioSlider->setVisible(false);
 }
 
 void MultiQEditor::updateDynamicAttachments()
@@ -3317,6 +3427,7 @@ void MultiQEditor::updateDynamicAttachments()
     dynAttackAttachment.reset();
     dynReleaseAttachment.reset();
     dynRangeAttachment.reset();
+    dynRatioAttachment.reset();
 
     // Only create attachments if we have a valid selected band and are in Digital mode
     bool isDigitalStyleMode = !isBritishMode && !isPultecMode;
@@ -3340,6 +3451,9 @@ void MultiQEditor::updateDynamicAttachments()
 
     dynRangeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
         processor.parameters, ParamIDs::bandDynRange(bandNum), *dynRangeSlider);
+
+    dynRatioAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
+        processor.parameters, ParamIDs::bandDynRatio(bandNum), *dynRatioSlider);
 }
 
 //==============================================================================

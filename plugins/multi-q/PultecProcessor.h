@@ -64,15 +64,18 @@ inline float pultecPreWarpFrequency(float freq, double sampleRate)
 class InductorModel
 {
 public:
-    void prepare(double sampleRate)
+    void prepare(double sampleRate, uint32_t characterSeed = 0)
     {
         this->sampleRate = sampleRate;
         reset();
 
         // Initialize component tolerance (simulates vintage unit variation)
         // Random variation of ±5% on Q and ±2% on saturation threshold
-        std::random_device rd;
-        std::mt19937 gen(rd());
+        // Use deterministic seed for reproducibility across sessions
+        // Default seed based on sample rate for consistent character
+        uint32_t seed = (characterSeed != 0) ? characterSeed
+                                             : static_cast<uint32_t>(sampleRate * 1000.0);
+        std::mt19937 gen(seed);
         std::uniform_real_distribution<float> qDist(0.95f, 1.05f);
         std::uniform_real_distribution<float> satDist(0.98f, 1.02f);
         componentQVariation = qDist(gen);
@@ -450,10 +453,10 @@ private:
 class PassiveLCNetwork
 {
 public:
-    void prepare(double sampleRate)
+    void prepare(double sampleRate, uint32_t characterSeed = 0)
     {
         this->sampleRate = sampleRate;
-        inductor.prepare(sampleRate);
+        inductor.prepare(sampleRate, characterSeed);
         reset();
     }
 
@@ -695,9 +698,11 @@ public:
         midHighPeakFilterR.prepare(spec);
 
         // Prepare enhanced analog stages
+        // Use deterministic seed based on sample rate for reproducible vintage character
+        uint32_t characterSeed = static_cast<uint32_t>(sampleRate * 1000.0);
         tubeStage.prepare(sampleRate, numChannels);
-        lfNetwork.prepare(sampleRate);
-        hfInductor.prepare(sampleRate);
+        lfNetwork.prepare(sampleRate, characterSeed);
+        hfInductor.prepare(sampleRate, characterSeed + 1);  // Offset for variation between inductors
 
         // Prepare transformers
         inputTransformer.prepare(sampleRate, numChannels);

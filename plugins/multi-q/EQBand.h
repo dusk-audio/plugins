@@ -257,6 +257,7 @@ namespace ParamIDs
     inline juce::String bandDynAttack(int bandNum) { return "band" + juce::String(bandNum) + "_dyn_attack"; }
     inline juce::String bandDynRelease(int bandNum) { return "band" + juce::String(bandNum) + "_dyn_release"; }
     inline juce::String bandDynRange(int bandNum) { return "band" + juce::String(bandNum) + "_dyn_range"; }
+    inline juce::String bandDynRatio(int bandNum) { return "band" + juce::String(bandNum) + "_dyn_ratio"; }
 
     // Global dynamic mode parameters
     const juce::String dynDetectionMode = "dyn_detection_mode";  // 0=Peak, 1=RMS

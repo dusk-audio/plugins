@@ -107,23 +107,40 @@ void PultecCurveDisplay::timerCallback()
 
     CachedParams newParams;
 
+    // Frequency lookup tables (match ComboBox item order in MultiQEditor.cpp)
+    static const float lfFreqTable[] = { 20.0f, 30.0f, 60.0f, 100.0f };
+    static const float hfBoostFreqTable[] = { 3000.0f, 4000.0f, 5000.0f, 8000.0f, 10000.0f, 12000.0f, 16000.0f };
+    static const float hfAttenFreqTable[] = { 5000.0f, 10000.0f, 20000.0f };
+
     // Read Pultec mode parameters
     if (auto* p = params.getRawParameterValue(ParamIDs::pultecLfBoostGain))
         newParams.lfBoostGain = p->load();
     if (auto* p = params.getRawParameterValue(ParamIDs::pultecLfBoostFreq))
-        newParams.lfBoostFreq = p->load();
+    {
+        int index = static_cast<int>(p->load() + 0.5f);  // Round to nearest int
+        index = juce::jlimit(0, 3, index);
+        newParams.lfBoostFreq = lfFreqTable[index];
+    }
     if (auto* p = params.getRawParameterValue(ParamIDs::pultecLfAttenGain))
         newParams.lfAttenGain = p->load();
     if (auto* p = params.getRawParameterValue(ParamIDs::pultecHfBoostGain))
         newParams.hfBoostGain = p->load();
     if (auto* p = params.getRawParameterValue(ParamIDs::pultecHfBoostFreq))
-        newParams.hfBoostFreq = p->load();
+    {
+        int index = static_cast<int>(p->load() + 0.5f);
+        index = juce::jlimit(0, 6, index);
+        newParams.hfBoostFreq = hfBoostFreqTable[index];
+    }
     if (auto* p = params.getRawParameterValue(ParamIDs::pultecHfBoostBandwidth))
         newParams.hfBoostBandwidth = p->load();
     if (auto* p = params.getRawParameterValue(ParamIDs::pultecHfAttenGain))
         newParams.hfAttenGain = p->load();
     if (auto* p = params.getRawParameterValue(ParamIDs::pultecHfAttenFreq))
-        newParams.hfAttenFreq = p->load();
+    {
+        int index = static_cast<int>(p->load() + 0.5f);
+        index = juce::jlimit(0, 2, index);
+        newParams.hfAttenFreq = hfAttenFreqTable[index];
+    }
     if (auto* p = params.getRawParameterValue(ParamIDs::pultecTubeDrive))
         newParams.tubeDrive = p->load();
 
@@ -407,4 +424,37 @@ float PultecCurveDisplay::calculateCombinedResponse(float freq) const
     response += calculateHFAttenResponse(freq);
 
     return response;
+}
+
+void PultecCurveDisplay::setDisplayScaleMode(DisplayScaleMode mode)
+{
+    scaleMode = mode;
+
+    switch (mode)
+    {
+        case DisplayScaleMode::Linear12dB:
+            minDB = -12.0f;
+            maxDB = 12.0f;
+            break;
+        case DisplayScaleMode::Linear24dB:
+            minDB = -24.0f;
+            maxDB = 24.0f;
+            break;
+        case DisplayScaleMode::Linear30dB:
+            minDB = -30.0f;
+            maxDB = 30.0f;
+            break;
+        case DisplayScaleMode::Linear60dB:
+            minDB = -60.0f;
+            maxDB = 60.0f;
+            break;
+        case DisplayScaleMode::Warped:
+            // Warped mode uses same range as 24dB for now
+            minDB = -24.0f;
+            maxDB = 24.0f;
+            break;
+    }
+
+    needsRepaint = true;
+    repaint();
 }

@@ -332,6 +332,7 @@ private:
     std::array<std::atomic<float>*, NUM_BANDS> bandDynAttackParams{};
     std::array<std::atomic<float>*, NUM_BANDS> bandDynReleaseParams{};
     std::array<std::atomic<float>*, NUM_BANDS> bandDynRangeParams{};
+    std::array<std::atomic<float>*, NUM_BANDS> bandDynRatioParams{};
     std::atomic<float>* dynDetectionModeParam = nullptr;
 
     // Safe parameter accessor

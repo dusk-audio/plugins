@@ -38,6 +38,7 @@ BandDetailPanel::~BandDetailPanel()
     if (attackKnob) attackKnob->setLookAndFeel(nullptr);
     if (releaseKnob) releaseKnob->setLookAndFeel(nullptr);
     if (rangeKnob) rangeKnob->setLookAndFeel(nullptr);
+    if (ratioKnob) ratioKnob->setLookAndFeel(nullptr);
 }
 
 void BandDetailPanel::setupBandButtons()
@@ -107,6 +108,8 @@ void BandDetailPanel::setupKnobs()
     releaseKnob->setTooltip("Release: How fast gain returns after level drops (10 - 5000 ms)");
     setupDynKnob(rangeKnob);
     rangeKnob->setTooltip("Range: Maximum amount of dynamic gain reduction (0 - 24 dB)");
+    setupDynKnob(ratioKnob);
+    ratioKnob->setTooltip("Ratio: Compression ratio (1:1 = no compression, 20:1 = heavy limiting)");
 
     // Toggle buttons
     dynButton = std::make_unique<juce::TextButton>("DYN");
@@ -170,6 +173,7 @@ void BandDetailPanel::updateAttachments()
     attackAttachment.reset();
     releaseAttachment.reset();
     rangeAttachment.reset();
+    ratioAttachment.reset();
 
     if (selectedBand < 0 || selectedBand >= 8)
         return;
@@ -212,6 +216,9 @@ void BandDetailPanel::updateAttachments()
 
     rangeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
         processor.parameters, ParamIDs::bandDynRange(bandNum), *rangeKnob);
+
+    ratioAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
+        processor.parameters, ParamIDs::bandDynRatio(bandNum), *ratioKnob);
 }
 
 void BandDetailPanel::updateControlsForBandType()
@@ -245,6 +252,7 @@ void BandDetailPanel::updateDynamicsOpacity()
     attackKnob->setAlpha(alpha);
     releaseKnob->setAlpha(alpha);
     rangeKnob->setAlpha(alpha);
+    ratioKnob->setAlpha(alpha);
 }
 
 juce::Colour BandDetailPanel::getBandColor(int bandIndex) const
@@ -380,7 +388,7 @@ void BandDetailPanel::paint(juce::Graphics& g)
     int totalContentWidth = bandIndicatorSize + 10  // Band indicator + gap
                           + eqColumnsWidth + 10  // EQ section + separator gap
                           + 12  // Divider space
-                          + (knobSize + knobSpacing) * 4 + 6  // 4 dynamics knobs + button gap
+                          + (knobSize + knobSpacing) * 5 + 6  // 5 dynamics knobs + button gap
                           + btnWidth;  // Buttons
 
     // Center the content
@@ -481,7 +489,7 @@ void BandDetailPanel::paint(juce::Graphics& g)
 
     // ===== DYNAMICS SECTION BACKGROUND =====
     int dynStartX = dividerX + 10;
-    int dynSectionWidth = (knobSize + knobSpacing) * 4 + 60;  // 4 knobs + buttons
+    int dynSectionWidth = (knobSize + knobSpacing) * 5 + 60;  // 5 knobs + buttons
     juce::Colour dynBgColor = dynEnabled ? juce::Colour(0xFF28231e) : juce::Colour(0xFF1e1e20);
     juce::Rectangle<float> dynSection(static_cast<float>(dynStartX - 4), 4.0f,
                                        static_cast<float>(dynSectionWidth), bounds.getHeight() - 8.0f);
@@ -512,7 +520,7 @@ void BandDetailPanel::paintOverChildren(juce::Graphics& g)
     int totalContentWidth = bandIndicatorSize + 10  // Band indicator + gap
                           + eqColumnsWidth + 10  // EQ section + separator gap
                           + 12  // Divider space
-                          + (knobSize + knobSpacing) * 4 + 6  // 4 dynamics knobs + button gap
+                          + (knobSize + knobSpacing) * 5 + 6  // 5 dynamics knobs + button gap
                           + btnWidth;  // Buttons
 
     // Center the content
@@ -609,14 +617,23 @@ void BandDetailPanel::paintOverChildren(juce::Graphics& g)
     drawKnobWithLabel(g, rangeKnob.get(), "RANGE",
                       formatDb(rangeKnob->getValue()),
                       {currentX, knobY, knobSize, knobSize + 20}, !dynEnabled);
+    currentX += knobSize + knobSpacing;
 
-    // ===== DYNAMICS SECTION LABEL (centered below the 4 dynamics knobs) =====
+    // RATIO
+    {
+        // Format ratio as "X:1"
+        juce::String ratioStr = juce::String(ratioKnob->getValue(), 1) + ":1";
+        drawKnobWithLabel(g, ratioKnob.get(), "RATIO", ratioStr,
+                          {currentX, knobY, knobSize, knobSize + 20}, !dynEnabled);
+    }
+
+    // ===== DYNAMICS SECTION LABEL (centered below the 5 dynamics knobs) =====
     // Calculate dynSection position (must match paint())
     int eqSectionWidth = eqColumnsWidth + 6;
     int eqEndX = (startX + bandIndicatorSize + 10) + eqSectionWidth + 4;
     int dividerX = eqEndX + 4;
     int dynStartX = dividerX + 10;
-    int dynKnobsWidth = (knobSize + knobSpacing) * 4;  // Width of just the 4 knobs
+    int dynKnobsWidth = (knobSize + knobSpacing) * 5;  // Width of just the 5 knobs
 
     // Draw "DYNAMICS" label below knobs, centered over the 4 knobs (not the buttons)
     g.setColour(dynEnabled ? juce::Colour(0xFFff8844) : juce::Colour(0xFF505050));
@@ -675,7 +692,7 @@ void BandDetailPanel::resized()
     int totalContentWidth = bandIndicatorSize + 10  // Band indicator + gap
                           + eqColumnsWidth + 10  // EQ section + separator gap
                           + 12  // Divider space
-                          + (knobSize + knobSpacing) * 4 + 6  // 4 dynamics knobs + button gap
+                          + (knobSize + knobSpacing) * 5 + 6  // 5 dynamics knobs + button gap
                           + btnWidth;  // Buttons
 
     // Center the content
@@ -733,6 +750,10 @@ void BandDetailPanel::resized()
 
     // RANGE knob
     rangeKnob->setBounds(currentX, knobY, knobSize, knobSize);
+    currentX += knobSize + knobSpacing;
+
+    // RATIO knob
+    ratioKnob->setBounds(currentX, knobY, knobSize, knobSize);
     currentX += knobSize + knobSpacing + 6;
 
     // DYN and SOLO buttons (stacked vertically on right)

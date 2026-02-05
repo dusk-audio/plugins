@@ -109,6 +109,7 @@ MultiQ::MultiQ()
         bandDynAttackParams[static_cast<size_t>(i)] = parameters.getRawParameterValue(ParamIDs::bandDynAttack(i + 1));
         bandDynReleaseParams[static_cast<size_t>(i)] = parameters.getRawParameterValue(ParamIDs::bandDynRelease(i + 1));
         bandDynRangeParams[static_cast<size_t>(i)] = parameters.getRawParameterValue(ParamIDs::bandDynRange(i + 1));
+        bandDynRatioParams[static_cast<size_t>(i)] = parameters.getRawParameterValue(ParamIDs::bandDynRatio(i + 1));
     }
     dynDetectionModeParam = parameters.getRawParameterValue(ParamIDs::dynDetectionMode);
     autoGainEnabledParam = parameters.getRawParameterValue(ParamIDs::autoGainEnabled);
@@ -228,6 +229,13 @@ void MultiQ::parameterChanged(const juce::String& parameterID, float /*newValue*
         auto res = static_cast<AnalyzerResolution>(
             static_cast<int>(safeGetParam(analyzerResolutionParam, 1.0f)));
         updateFFTSize(res);
+    }
+
+    // Update latency when linear phase or dynamics parameters change
+    if (parameterID == ParamIDs::linearPhaseEnabled ||
+        parameterID.startsWith("dyn_enabled"))
+    {
+        setLatencySamples(getLatencySamples());
     }
 }
 
@@ -693,6 +701,7 @@ void MultiQ::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& /*
                 dynParams.attack = safeGetParam(bandDynAttackParams[static_cast<size_t>(band)], 10.0f);
                 dynParams.release = safeGetParam(bandDynReleaseParams[static_cast<size_t>(band)], 100.0f);
                 dynParams.range = safeGetParam(bandDynRangeParams[static_cast<size_t>(band)], 12.0f);
+                dynParams.ratio = safeGetParam(bandDynRatioParams[static_cast<size_t>(band)], 4.0f);
                 dynamicEQ.setBandParameters(band, dynParams);
 
                 // Update detection filter to match band frequency
@@ -1856,6 +1865,15 @@ juce::AudioProcessorValueTreeState::ParameterLayout MultiQ::createParameterLayou
             12.0f,
             juce::AudioParameterFloatAttributes().withLabel("dB")
         ));
+
+        // Ratio (1:1 to 20:1, with skew for better control in common ranges)
+        params.push_back(std::make_unique<juce::AudioParameterFloat>(
+            juce::ParameterID(ParamIDs::bandDynRatio(bandNum), 1),
+            "Band " + juce::String(bandNum) + " Ratio",
+            juce::NormalisableRange<float>(1.0f, 20.0f, 0.1f, 0.5f),  // Skew for finer control at low ratios
+            4.0f,
+            juce::AudioParameterFloatAttributes().withLabel(":1")
+        ));
     }
 
     // Global dynamic mode parameters
@@ -2030,14 +2048,37 @@ const juce::String MultiQ::getProgramName(int index)
 //==============================================================================
 int MultiQ::getLatencySamples() const
 {
-    // Report latency for linear phase mode
-    // Linear phase EQ introduces latency of filterLength / 2 samples
+    int totalLatency = 0;
+
+    // Linear phase EQ latency (filterLength / 2 samples)
     if (linearPhaseModeEnabled && linearPhaseEnabledParam &&
         safeGetParam(linearPhaseEnabledParam, 0.0f) > 0.5f)
     {
-        return linearPhaseEQ[0].getLatencyInSamples();
+        totalLatency += linearPhaseEQ[0].getLatencyInSamples();
     }
-    return 0;
+
+    // Dynamic EQ lookahead latency (only in Digital mode)
+    auto eqType = static_cast<EQType>(static_cast<int>(safeGetParam(eqTypeParam, 0.0f)));
+    if (eqType == EQType::Digital)
+    {
+        // Check if any band has dynamics enabled
+        bool anyDynamicsEnabled = false;
+        for (int i = 0; i < NUM_BANDS; ++i)
+        {
+            if (safeGetParam(bandDynEnabledParams[static_cast<size_t>(i)], 0.0f) > 0.5f)
+            {
+                anyDynamicsEnabled = true;
+                break;
+            }
+        }
+
+        if (anyDynamicsEnabled)
+        {
+            totalLatency += dynamicEQ.getLookaheadSamples();
+        }
+    }
+
+    return totalLatency;
 }
 
 //==============================================================================

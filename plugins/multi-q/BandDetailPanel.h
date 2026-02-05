@@ -67,6 +67,7 @@ private:
     std::unique_ptr<juce::Slider> attackKnob;
     std::unique_ptr<juce::Slider> releaseKnob;
     std::unique_ptr<juce::Slider> rangeKnob;
+    std::unique_ptr<juce::Slider> ratioKnob;
 
     //==========================================================================
     // Toggle buttons
@@ -86,6 +87,7 @@ private:
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> attackAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> releaseAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> rangeAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> ratioAttachment;
 
     //==========================================================================
     // Setup methods
