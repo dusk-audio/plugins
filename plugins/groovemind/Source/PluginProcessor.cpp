@@ -20,10 +20,7 @@ GrooveMindProcessor::GrooveMindProcessor()
       grooveHumanizer(),
       followModeController()
 {
-    // Load pattern library
     loadPatternLibrary();
-
-    // Load ML models
     loadMLModels();
 }
 

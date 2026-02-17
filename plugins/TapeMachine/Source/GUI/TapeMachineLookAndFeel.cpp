@@ -3,11 +3,8 @@
 using namespace TapeMachineColors;
 
 //==============================================================================
-// Constructor
-//==============================================================================
 TapeMachineLookAndFeel::TapeMachineLookAndFeel()
 {
-    // Set up color scheme
     setColour(juce::Slider::textBoxTextColourId, juce::Colour(textPrimary));
     setColour(juce::Slider::textBoxBackgroundColourId, juce::Colour(panelDark));
     setColour(juce::Slider::textBoxOutlineColourId, juce::Colour(metalDark));

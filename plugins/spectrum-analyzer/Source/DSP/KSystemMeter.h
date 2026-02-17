@@ -30,9 +30,7 @@ public:
     {
         this->sampleRate = sampleRate;
 
-        // VU-standard 300ms integration
-        // Time constant for exponential averaging
-        float integrationTimeSec = 0.3f;
+        float integrationTimeSec = 0.3f;  // VU-standard 300ms
         float samplesForIntegration = static_cast<float>(sampleRate) * integrationTimeSec;
         decayCoeff = 1.0f - (1.0f / samplesForIntegration);
 
@@ -50,8 +48,6 @@ public:
     void setType(Type type) { currentType = type; }
     Type getType() const { return currentType; }
 
-    //==========================================================================
-    // Process audio block
     void process(const float* left, const float* right, int numSamples)
     {
         for (int i = 0; i < numSamples; ++i)
@@ -59,12 +55,10 @@ public:
             float L = left[i];
             float R = right[i];
 
-            // Exponential RMS averaging
             rmsAccumulatorL = rmsAccumulatorL * decayCoeff + (L * L) * (1.0f - decayCoeff);
             rmsAccumulatorR = rmsAccumulatorR * decayCoeff + (R * R) * (1.0f - decayCoeff);
         }
 
-        // Update peak hold
         float currentRmsL = std::sqrt(rmsAccumulatorL);
         float currentRmsR = std::sqrt(rmsAccumulatorR);
 
@@ -72,35 +66,27 @@ public:
         if (currentRmsR > peakHoldR) peakHoldR = currentRmsR;
     }
 
-    //==========================================================================
-    // Get K-system level (with offset applied)
     float getKLevelL() const { return linearToKLevel(std::sqrt(rmsAccumulatorL)); }
     float getKLevelR() const { return linearToKLevel(std::sqrt(rmsAccumulatorR)); }
 
-    // Get average (mono) K level
     float getKLevelMono() const
     {
         float monoRms = std::sqrt((rmsAccumulatorL + rmsAccumulatorR) * 0.5f);
         return linearToKLevel(monoRms);
     }
 
-    // Get raw RMS in dB (without K offset)
     float getRmsDbL() const { return linearToDb(std::sqrt(rmsAccumulatorL)); }
     float getRmsDbR() const { return linearToDb(std::sqrt(rmsAccumulatorR)); }
 
-    // Get peak hold in K-system level
     float getPeakHoldL() const { return linearToKLevel(peakHoldL); }
     float getPeakHoldR() const { return linearToKLevel(peakHoldR); }
 
-    // Reset peak hold
     void resetPeakHold()
     {
         peakHoldL = 0.0f;
         peakHoldR = 0.0f;
     }
 
-    //==========================================================================
-    // Get reference level offset for current K-type
     float getReferenceLevel() const
     {
         switch (currentType)
@@ -112,7 +98,6 @@ public:
         return -14.0f;
     }
 
-    // Get headroom for current K-type
     float getHeadroom() const
     {
         switch (currentType)
@@ -144,8 +129,6 @@ private:
 
     float linearToKLevel(float linear) const
     {
-        // K-level = RMS_dB + reference_offset
-        // This makes the reference level appear at 0 VU on the meter
         return linearToDb(linear) - getReferenceLevel();
     }
 

@@ -479,8 +479,6 @@ void ConvolutionReverbEditor::paint(juce::Graphics& g)
                static_cast<int>(eqPanelBounds.getY() + 5),
                120, 15, juce::Justification::left);
 
-    // Note: EQ curve now displayed in waveform area via IR/EQ toggle
-
     // ========== SEPARATOR LINES ==========
     g.setColour(juce::Colour(0xff3a3a3a));
 

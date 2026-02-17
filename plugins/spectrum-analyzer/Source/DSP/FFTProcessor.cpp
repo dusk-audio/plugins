@@ -10,26 +10,19 @@ FFTProcessor::FFTProcessor()
 void FFTProcessor::prepare(double sr, int /*maxBlockSize*/)
 {
     sampleRate = sr;
-
-    // Initialize FFT with current resolution
     updateFFTSize(currentResolution);
-
-    // Update peak hold samples based on refresh rate (30 Hz assumed)
     peakHoldSamples = static_cast<int>(peakHoldTime * 30.0f);
-
     reset();
 }
 
 void FFTProcessor::reset()
 {
-    // Clear FIFOs
     fifoL.reset();
     fifoR.reset();
 
     std::fill(audioBufferL.begin(), audioBufferL.end(), 0.0f);
     std::fill(audioBufferR.begin(), audioBufferR.end(), 0.0f);
 
-    // Clear magnitudes
     displayMagnitudes.fill(-100.0f);
     peakHoldMagnitudes.fill(-100.0f);
     smoothedMagnitudes.fill(-100.0f);
@@ -41,7 +34,6 @@ void FFTProcessor::reset()
 //==============================================================================
 void FFTProcessor::pushSamples(const float* left, const float* right, int numSamples)
 {
-    // Push left channel
     {
         int start1, size1, start2, size2;
         fifoL.prepareToWrite(numSamples, start1, size1, start2, size2);
@@ -54,7 +46,6 @@ void FFTProcessor::pushSamples(const float* left, const float* right, int numSam
         fifoL.finishedWrite(size1 + size2);
     }
 
-    // Push right channel
     {
         int start1, size1, start2, size2;
         fifoR.prepareToWrite(numSamples, start1, size1, start2, size2);
@@ -71,11 +62,9 @@ void FFTProcessor::pushSamples(const float* left, const float* right, int numSam
 //==============================================================================
 void FFTProcessor::processFFT()
 {
-    // Check if we have enough samples
     if (fifoL.getNumReady() < currentFFTSize || fifoR.getNumReady() < currentFFTSize)
         return;
 
-    // Read left channel from FIFO
     {
         int start1, size1, start2, size2;
         fifoL.prepareToRead(currentFFTSize, start1, size1, start2, size2);
@@ -92,7 +81,6 @@ void FFTProcessor::processFFT()
         fifoL.finishedRead(size1 + size2);
     }
 
-    // Read right channel from FIFO
     {
         int start1, size1, start2, size2;
         fifoR.prepareToRead(currentFFTSize, start1, size1, start2, size2);
@@ -109,17 +97,13 @@ void FFTProcessor::processFFT()
         fifoR.finishedRead(size1 + size2);
     }
 
-    // Sum to mono for spectrum display (or could do L/R separately)
+    // Sum to mono for spectrum display
     for (int i = 0; i < currentFFTSize; ++i)
         fftWorkBuffer[i] = (fftInputL[i] + fftInputR[i]) * 0.5f;
 
-    // Apply window
     window->multiplyWithWindowingTable(fftWorkBuffer.data(), static_cast<size_t>(currentFFTSize));
-
-    // Perform FFT (frequency-only for efficiency)
     fft->performFrequencyOnlyForwardTransform(fftWorkBuffer.data());
 
-    // Map FFT bins to logarithmic display bins
     int numFFTBins = currentFFTSize / 2;
     float binFreqWidth = static_cast<float>(sampleRate) / static_cast<float>(currentFFTSize);
 
@@ -127,40 +111,32 @@ void FFTProcessor::processFFT()
     float logMaxFreq = std::log10(maxFreq);
     float logRange = logMaxFreq - logMinFreq;
 
-    // Decay per frame (at 30 Hz refresh)
     float decayPerFrame = decayRate / 30.0f;
 
     for (int displayBin = 0; displayBin < DISPLAY_BINS; ++displayBin)
     {
-        // Map display bin to frequency (logarithmic)
         float normalizedPos = static_cast<float>(displayBin) / static_cast<float>(DISPLAY_BINS - 1);
         float logFreq = logMinFreq + normalizedPos * logRange;
         float freq = std::pow(10.0f, logFreq);
 
-        // Find corresponding FFT bin
-        float fftBinFloat = freq / binFreqWidth;
-        int fftBin = static_cast<int>(fftBinFloat);
-        fftBin = juce::jlimit(0, numFFTBins - 1, fftBin);
+        int fftBin = juce::jlimit(0, numFFTBins - 1,
+                                   static_cast<int>(freq / binFreqWidth));
 
-        // Get magnitude
         float magnitude = fftWorkBuffer[static_cast<size_t>(fftBin)];
 
-        // Normalize and convert to dB
         float dB = juce::Decibels::gainToDecibels(
             magnitude * 2.0f / static_cast<float>(currentFFTSize), -100.0f);
 
-        // Apply slope compensation
         if (std::abs(slopeDbPerOctave) > 0.01f)
         {
-            float octavesFromRef = std::log2(freq / 1000.0f);  // Reference at 1kHz
+            float octavesFromRef = std::log2(freq / 1000.0f);
             dB += octavesFromRef * slopeDbPerOctave;
         }
 
-        // Apply smoothing
         float smoothed;
         if (smoothingFactor > 0.01f)
         {
-            float coeff = smoothingFactor * 0.95f;  // Scale to useful range
+            float coeff = smoothingFactor * 0.95f;
             smoothed = smoothedMagnitudes[displayBin] * coeff + dB * (1.0f - coeff);
             smoothedMagnitudes[displayBin] = smoothed;
         }
@@ -172,7 +148,6 @@ void FFTProcessor::processFFT()
 
         displayMagnitudes[displayBin] = smoothed;
 
-        // Update peak hold
         if (peakHoldEnabled)
         {
             if (smoothed > peakHoldMagnitudes[displayBin])

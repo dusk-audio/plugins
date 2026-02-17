@@ -378,7 +378,6 @@ void TapeMachineAudioProcessor::prepareToPlay (double sampleRate, int samplesPer
     const float rampTimeMs = 20.0f;
     const float saturationRampTimeMs = 150.0f;  // Slower smoothing for saturation to avoid jumps
 
-    // Note: Input/output gain smoothing is now handled by the gain processors themselves
     smoothedSaturation.reset(sampleRate, saturationRampTimeMs * 0.001f);
     smoothedNoiseAmount.reset(sampleRate, rampTimeMs * 0.001f);
     smoothedWow.reset(sampleRate, rampTimeMs * 0.001f);
@@ -718,9 +717,8 @@ void TapeMachineAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
         currentOversampledRate = static_cast<float>(newOversampledRate);
         const int oversampledBlockSize = buffer.getNumSamples() * currentOversamplingFactor;
 
-        // Re-prepare tape emulation with new oversampled rate and explicit factor
-        // This updates filter coefficients (e.g., anti-aliasing cutoff at base sample rate)
-        // Note: prepare() resets filter states - the crossfade handles the transition smoothly
+        // Re-prepare tape emulation with new oversampled rate
+        // prepare() resets filter states - the crossfade handles the transition smoothly
         if (tapeEmulationLeft)
             tapeEmulationLeft->prepare(newOversampledRate, oversampledBlockSize, currentOversamplingFactor);
         if (tapeEmulationRight)

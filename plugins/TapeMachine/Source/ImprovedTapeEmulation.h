@@ -971,7 +971,6 @@ private:
     bool m_hasTransformers = false;
     float m_gapWidth = 3.0f;
 
-    // Helper functions
     MachineCharacteristics getMachineCharacteristics(TapeMachine machine);
     TapeCharacteristics getTapeCharacteristics(TapeType type);
     SpeedCharacteristics getSpeedCharacteristics(TapeSpeed speed);

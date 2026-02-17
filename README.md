@@ -42,14 +42,6 @@ Analog tape machine emulation featuring:
 - Dual stereo VU meters with animated reels
 - 2x/4x oversampling for alias-free processing
 
-### Velvet 90 - IN DEVELOPMENT
-Professional algorithmic reverb:
-- 10 modes: Plate, Room, Hall, Chamber, Cathedral, Ambience, Bright Hall, Chorus Space, Random Space, Dirty Hall
-- 8-line FDN architecture with Hadamard matrix mixing
-- 4-band frequency-dependent decay
-- Envelope shaper, echo delay, parametric output EQ
-- Stereo anti-correlation and resonance controls
-
 ### Convolution Reverb - IN DEVELOPMENT
 Zero-latency IR-based reverb:
 - Supports WAV, AIFF, AIFC, SDIR impulse responses
@@ -72,12 +64,6 @@ Classic tape delay with spring reverb:
 - Tape saturation and wow/flutter
 - Tempo sync with multiple note divisions
 - Animated tape visualization
-
-### Neural Amp - IN DEVELOPMENT
-Neural network amp modeling (NAM):
-- Load .nam model files
-- Guitar and bass amp tones
-- Low-latency inference
 
 ### GrooveMind - IN DEVELOPMENT
 > ⚠️ Early development - not functional yet.
@@ -102,10 +88,8 @@ For consistent, distributable binaries:
 
 # Build a single plugin (in development)
 ./docker/build_release.sh multiq       # Multi-Q
-./docker/build_release.sh velvet-90    # Velvet 90
 ./docker/build_release.sh convolution  # Convolution Reverb
 ./docker/build_release.sh tapeecho     # Tape Echo
-./docker/build_release.sh nam          # Neural Amp
 ./docker/build_release.sh groovemind   # GrooveMind
 
 # Show all available shortcuts
@@ -129,10 +113,8 @@ cmake --build . --target TapeMachine_All
 
 # In development
 cmake --build . --target MultiQ_All
-cmake --build . --target Velvet90_All
 cmake --build . --target ConvolutionReverb_All
 cmake --build . --target TapeEcho_All
-cmake --build . --target NeuralAmp_All
 cmake --build . --target GrooveMind_All
 ```
 

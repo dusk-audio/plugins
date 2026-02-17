@@ -715,7 +715,6 @@ void IRWaveformDisplay::drawEQCurve(juce::Graphics& g, juce::Rectangle<float> bo
 
     float centreY = bounds.getCentreY();
 
-    // Helper functions
     auto freqToX = [&](float freq) -> float
     {
         float normalizedFreq = (std::log10(freq) - std::log10(minFreq)) /

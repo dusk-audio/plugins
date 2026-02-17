@@ -720,8 +720,6 @@ void FourKEQEditor::timerCallback()
         repaint();
     }
 
-    // Note: Value readout labels removed - tick marks show parameter range
-
     // Update LED meters directly (they handle their own ballistics internally)
     // Get current levels from processor
     float inL = audioProcessor.inputLevelL.load(std::memory_order_relaxed);

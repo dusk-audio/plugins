@@ -1,10 +1,7 @@
 cmake_minimum_required(VERSION 3.15)
 project(DuskPlugins VERSION 1.0.0)
 
-# C++ standard is set per-plugin:
-# - Most plugins use C++17 (set in their own CMakeLists.txt)
-# - Neural Amp uses C++20 (required for NAM Core)
-# This avoids conflicts and ensures each plugin compiles with its required standard
+# C++ standard is set per-plugin (most use C++17, set in their own CMakeLists.txt)
 
 # Include global settings
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/GlobalSettings.cmake)
@@ -49,10 +46,7 @@ option(BUILD_HARMONIC_GENERATOR "Build Harmonic Generator plugin" OFF)  # Direct
 option(BUILD_TAPE_MACHINE "Build TapeMachine plugin" ON)
 option(BUILD_GROOVEMIND "Build GrooveMind plugin" ON)  # ML-based intelligent drummer
 option(BUILD_CONVOLUTION_REVERB "Build Convolution Reverb plugin" ON)
-option(BUILD_VELVET90 "Build Velvet 90 plugin" ON)
-option(BUILD_SUEDE200 "Build Suede 200 plugin" OFF)  # Local development only
 option(BUILD_MULTI_Q "Build Multi-Q plugin" ON)
-option(BUILD_NEURAL_AMP "Build Neural Amp plugin" OFF)  # Disabled: Eigen dependency adds significant compile time
 option(BUILD_TAPE_ECHO "Build Tape Echo plugin" ON)
 option(BUILD_CHORD_ANALYZER "Build Chord Analyzer plugin" ON)
 option(BUILD_SPECTRUM_ANALYZER "Build Spectrum Analyzer plugin" ON)
@@ -82,20 +76,8 @@ if(BUILD_CONVOLUTION_REVERB)
     add_subdirectory(plugins/convolution-reverb)
 endif()
 
-if(BUILD_VELVET90)
-    add_subdirectory(plugins/Velvet90)
-endif()
-
-if(BUILD_SUEDE200 AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/plugins/Suede200")
-    add_subdirectory(plugins/Suede200)
-endif()
-
 if(BUILD_MULTI_Q)
     add_subdirectory(plugins/multi-q)
-endif()
-
-if(BUILD_NEURAL_AMP)
-    add_subdirectory(plugins/neural-amp)
 endif()
 
 if(BUILD_TAPE_ECHO)

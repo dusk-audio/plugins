@@ -553,9 +553,6 @@ void FourKEQ::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& /
         spectrumBufferPre.makeCopyOf(buffer, true);
     }
 
-    // Use oversampling factor already calculated in prepareToPlay()
-    // Note: oversamplingFactor is adaptively set based on sample rate (1, 2, or 4)
-    // No need to recalculate here - prepareToPlay() handles this optimization
     auto& oversampler = (oversamplingFactor == 2) ? *oversampler2x : *oversampler4x;
 
     // Check M/S mode

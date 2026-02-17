@@ -65,7 +65,6 @@ private:
 
     bool needsRepaint = true;
 
-    // Helper functions
     float freqToX(float freq, const juce::Rectangle<float>& area) const;
     float xToFreq(float x, const juce::Rectangle<float>& area) const;
     float dbToY(float db, const juce::Rectangle<float>& area) const;

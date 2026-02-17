@@ -25,9 +25,7 @@ Professional audio VST3/LV2/AU plugins built with JUCE. Published as "Dusk Audio
 | TapeMachine | `tapemachine` | `plugins/TapeMachine/` | Analog tape emulation |
 | Tape Echo | `tape-echo` | `plugins/tape-echo/` | Classic tape delay |
 | Multi-Q | `multi-q` | `plugins/multi-q/` | Universal EQ (Digital/British/Tube) |
-| Velvet 90 | `velvet-90` | `plugins/Velvet90/` | Algorithmic reverb |
 | Convolution Reverb | `convolution-reverb` | `plugins/convolution-reverb/` | IR-based reverb |
-| Neural Amp | `neural-amp` | `plugins/neural-amp/` | Neural amp modeler (NAM) |
 | GrooveMind | `groovemind` | `plugins/groovemind/` | ML drum generator (future) |
 
 ## Version Management & Releasing
@@ -89,9 +87,7 @@ Professional audio VST3/LV2/AU plugins built with JUCE. Published as "Dusk Audio
 | `tape` | TapeMachine |
 | `tapeecho` | Tape Echo |
 | `multiq` | Multi-Q |
-| `velvet-90` | Velvet 90 |
 | `convolution` | Convolution Reverb |
-| `nam` | Neural Amp |
 
 **Validation**: `./tests/run_plugin_tests.sh --plugin "<Name>" --skip-audio`
 
@@ -105,9 +101,7 @@ plugins/
 │   ├── TapeMachine/
 │   ├── tape-echo/
 │   ├── multi-q/
-│   ├── Velvet90/
 │   ├── convolution-reverb/
-│   ├── neural-amp/
 │   └── shared/           # SHARED CODE - CHECK HERE FIRST
 ├── docker/
 │   └── build_release.sh  # Primary build script

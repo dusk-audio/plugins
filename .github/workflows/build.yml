@@ -8,11 +8,8 @@ on:
       - 'multi-comp-v*'         # Multi-Comp only: multi-comp-v1.0.1
       - 'tapemachine-v*'        # TapeMachine only
       - 'tape-echo-v*'          # Tape Echo only
-      - 'velvet-90-v*'           # Velvet 90 only
-      - 'suede-200-v*'          # Suede 200 only
       - 'multi-q-v*'            # Multi-Q only
       - 'convolution-reverb-v*' # Convolution Reverb only
-      - 'neural-amp-v*'         # Neural Amp only
       - 'groovemind-v*'         # GrooveMind only
   workflow_dispatch:
     inputs:
@@ -27,11 +24,8 @@ on:
           - 'multi-comp'
           - 'tapemachine'
           - 'tape-echo'
-          - 'velvet-90'
-          - 'suede-200'
           - 'multi-q'
           - 'convolution-reverb'
-          - 'neural-amp'
           - 'groovemind'
 
 env:
@@ -79,10 +73,6 @@ jobs:
               TARGET="TapeMachine_All"
               NAME="TapeMachine"
               RELEASE_NAME="tapemachine"
-            elif [[ "$TAG" == velvet-90-v* ]]; then
-              TARGET="Velvet90_All"
-              NAME="Velvet 90"
-              RELEASE_NAME="velvet-90"
             elif [[ "$TAG" == multi-q-v* ]]; then
               TARGET="MultiQ_All"
               NAME="Multi-Q"
@@ -95,18 +85,10 @@ jobs:
               TARGET="ConvolutionReverb_All"
               NAME="Convolution Reverb"
               RELEASE_NAME="convolution-reverb"
-            elif [[ "$TAG" == neural-amp-v* ]]; then
-              TARGET="NeuralAmp_All"
-              NAME="Neural Amp"
-              RELEASE_NAME="neural-amp"
             elif [[ "$TAG" == groovemind-v* ]]; then
               TARGET="GrooveMind_All"
               NAME="GrooveMind"
               RELEASE_NAME="groovemind"
-            elif [[ "$TAG" == suede-200-v* ]]; then
-              TARGET="Suede200_All"
-              NAME="Suede 200"
-              RELEASE_NAME="suede-200"
             fi
           elif [[ -n "$MANUAL_PLUGIN" ]]; then
             case "$MANUAL_PLUGIN" in
@@ -114,12 +96,9 @@ jobs:
               multi-comp) TARGET="MultiComp_All"; NAME="Multi-Comp"; RELEASE_NAME="multi-comp" ;;
               tapemachine) TARGET="TapeMachine_All"; NAME="TapeMachine"; RELEASE_NAME="tapemachine" ;;
               tape-echo) TARGET="TapeEcho_All"; NAME="Tape Echo"; RELEASE_NAME="tape-echo" ;;
-              velvet-90) TARGET="Velvet90_All"; NAME="Velvet 90"; RELEASE_NAME="velvet-90" ;;
               multi-q) TARGET="MultiQ_All"; NAME="Multi-Q"; RELEASE_NAME="multi-q" ;;
               convolution-reverb) TARGET="ConvolutionReverb_All"; NAME="Convolution Reverb"; RELEASE_NAME="convolution-reverb" ;;
-              neural-amp) TARGET="NeuralAmp_All"; NAME="Neural Amp"; RELEASE_NAME="neural-amp" ;;
               groovemind) TARGET="GrooveMind_All"; NAME="GrooveMind"; RELEASE_NAME="groovemind" ;;
-              suede-200) TARGET="Suede200_All"; NAME="Suede 200"; RELEASE_NAME="suede-200" ;;
             esac
           fi
 
@@ -762,7 +741,6 @@ jobs:
               echo "- 4K EQ - Classic British Console EQ Emulation"
               echo "- Multi-Comp - Multi-mode compressor with multiband"
               echo "- TapeMachine - Analog tape machine emulation"
-              echo "- Velvet 90 - Algorithmic reverb"
               echo "- Convolution Reverb - IR-based reverb"
               echo "- Multi-Q - Universal 8-band EQ"
               echo "- And more..."

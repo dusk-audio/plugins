@@ -38,7 +38,6 @@ ConvolutionReverbProcessor::ConvolutionReverbProcessor()
     eqHighGainParam = parameters.getRawParameterValue("eq_high_gain");
     zeroLatencyParam = parameters.getRawParameterValue("zero_latency");
 
-    // New parameters
     irOffsetParam = parameters.getRawParameterValue("ir_offset");
     qualityParam = parameters.getRawParameterValue("quality");
     volumeCompParam = parameters.getRawParameterValue("volume_comp");
@@ -48,7 +47,6 @@ ConvolutionReverbProcessor::ConvolutionReverbProcessor()
     filterEnvAttackParam = parameters.getRawParameterValue("filter_env_attack");
     stereoModeParam = parameters.getRawParameterValue("stereo_mode");
 
-    // Set default IR directory
     customIRDirectory = getDefaultIRDirectory();
 }
 
@@ -61,21 +59,18 @@ juce::AudioProcessorValueTreeState::ParameterLayout ConvolutionReverbProcessor::
 {
     std::vector<std::unique_ptr<juce::RangedAudioParameter>> params;
 
-    // Mix (dry/wet)
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         "mix", "Mix",
         juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f),
         0.5f,
         juce::AudioParameterFloatAttributes().withLabel("%")));
 
-    // Pre-delay
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         "predelay", "Pre-Delay",
         juce::NormalisableRange<float>(0.0f, 500.0f, 1.0f),
         0.0f,
         juce::AudioParameterFloatAttributes().withLabel("ms")));
 
-    // Envelope controls
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         "attack", "Attack",
         juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f),
@@ -92,17 +87,14 @@ juce::AudioProcessorValueTreeState::ParameterLayout ConvolutionReverbProcessor::
         1.0f,
         juce::AudioParameterFloatAttributes().withLabel("%")));
 
-    // Reverse
     params.push_back(std::make_unique<juce::AudioParameterBool>(
         "reverse", "Reverse", false));
 
-    // Stereo width
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         "width", "Stereo Width",
         juce::NormalisableRange<float>(0.0f, 2.0f, 0.01f),
         1.0f));
 
-    // Filters
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         "hpf_freq", "HPF Frequency",
         juce::NormalisableRange<float>(20.0f, 500.0f, 1.0f, 0.5f),
@@ -115,8 +107,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout ConvolutionReverbProcessor::
         20000.0f,
         juce::AudioParameterFloatAttributes().withLabel("Hz")));
 
-    // 4-band EQ
-    // Low shelf
+    // 4-band EQ: low shelf, low-mid peak, high-mid peak, high shelf
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         "eq_low_freq", "Low Freq",
         juce::NormalisableRange<float>(20.0f, 500.0f, 1.0f, 0.5f),
@@ -129,7 +120,6 @@ juce::AudioProcessorValueTreeState::ParameterLayout ConvolutionReverbProcessor::
         0.0f,
         juce::AudioParameterFloatAttributes().withLabel("dB")));
 
-    // Low-mid peak
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         "eq_lmid_freq", "Lo-Mid Freq",
         juce::NormalisableRange<float>(200.0f, 2000.0f, 1.0f, 0.5f),
@@ -142,7 +132,6 @@ juce::AudioProcessorValueTreeState::ParameterLayout ConvolutionReverbProcessor::
         0.0f,
         juce::AudioParameterFloatAttributes().withLabel("dB")));
 
-    // High-mid peak
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         "eq_hmid_freq", "Hi-Mid Freq",
         juce::NormalisableRange<float>(1000.0f, 8000.0f, 1.0f, 0.5f),
@@ -155,7 +144,6 @@ juce::AudioProcessorValueTreeState::ParameterLayout ConvolutionReverbProcessor::
         0.0f,
         juce::AudioParameterFloatAttributes().withLabel("dB")));
 
-    // High shelf
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         "eq_high_freq", "High Freq",
         juce::NormalisableRange<float>(2000.0f, 20000.0f, 1.0f, 0.3f),
@@ -168,28 +156,23 @@ juce::AudioProcessorValueTreeState::ParameterLayout ConvolutionReverbProcessor::
         0.0f,
         juce::AudioParameterFloatAttributes().withLabel("dB")));
 
-    // Latency mode
     params.push_back(std::make_unique<juce::AudioParameterBool>(
         "zero_latency", "Zero Latency", true));
 
-    // IR Offset (0-100% of IR start position)
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         "ir_offset", "IR Offset",
         juce::NormalisableRange<float>(0.0f, 0.5f, 0.01f),  // Max 50% offset
         0.0f,
         juce::AudioParameterFloatAttributes().withLabel("%")));
 
-    // Quality (sample rate divisor)
     params.push_back(std::make_unique<juce::AudioParameterChoice>(
         "quality", "Quality",
         juce::StringArray{"Lo-Fi", "Low", "Medium", "High"},
-        2));  // Default: Medium
+        2));
 
-    // Volume Compensation
     params.push_back(std::make_unique<juce::AudioParameterBool>(
         "volume_comp", "Volume Compensation", true));
 
-    // Filter Envelope
     params.push_back(std::make_unique<juce::AudioParameterBool>(
         "filter_env_enabled", "Filter Envelope", false));
 

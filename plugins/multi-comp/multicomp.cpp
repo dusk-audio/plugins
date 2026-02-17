@@ -148,7 +148,6 @@ namespace Constants {
     constexpr float TRANSIENT_WINDOW_TIME = 0.1f; // 100ms window
     constexpr float TRANSIENT_NORMALIZE_COUNT = 10.0f; // 10+ transients = dense
 
-    // Helper function to get transient window samples based on sample rate
     inline int getTransientWindowSamples(double sampleRate) {
         return static_cast<int>(TRANSIENT_WINDOW_TIME * sampleRate); // ~100ms at any sample rate
     }
@@ -1013,7 +1012,6 @@ private:
     int currentLookaheadSamples = 0;
 };
 
-// Helper function to apply distortion based on type
 inline float applyDistortion(float input, DistortionType type, float amount = 1.0f)
 {
     if (type == DistortionType::Off || amount <= 0.0f)
@@ -1064,7 +1062,6 @@ inline float applyDistortion(float input, DistortionType type, float amount = 1.
     return wet;
 }
 
-// Helper function to get harmonic scaling based on saturation mode
 inline void getHarmonicScaling(int saturationMode, float& h2Scale, float& h3Scale, float& h4Scale)
 {
     switch (saturationMode)
@@ -2351,9 +2348,8 @@ public:
         // Apply makeup gain
         float output = processed * juce::Decibels::decibelsToGain(makeupGain);
 
-        // Note: Mix/parallel compression is now handled globally at the end of processBlock
-        // for consistency across all compressor modes (mixAmount parameter kept for API compatibility)
-        (void)mixAmount;  // Suppress unused warning
+        // Mix/parallel compression handled globally at end of processBlock
+        (void)mixAmount;
 
         // Final output limiting
         return juce::jlimit(-Constants::OUTPUT_HARD_LIMIT, Constants::OUTPUT_HARD_LIMIT, output);
@@ -2796,9 +2792,8 @@ public:
         // Apply compression to DELAYED input (the gain was computed from future/current samples)
         float output = delayedInput * detector.envelope;
 
-        // Note: Mix/parallel compression is now handled globally at the end of processBlock
-        // for consistency across all compressor modes (mixPercent parameter kept for API compatibility)
-        (void)mixPercent;  // Suppress unused warning
+        // Mix/parallel compression handled globally at end of processBlock
+        (void)mixPercent;
 
         // Apply output gain
         output *= juce::Decibels::decibelsToGain(outputGain);
@@ -3795,7 +3790,6 @@ float UniversalCompressor::LookupTables::getAllButtonsReduction(float overThresh
     return curve[index0] + frac * (curve[index1] - curve[index0]);
 }
 
-// Constructor
 UniversalCompressor::UniversalCompressor()
     : AudioProcessor(BusesProperties()
                      .withInput("Input", juce::AudioChannelSet::stereo(), true)

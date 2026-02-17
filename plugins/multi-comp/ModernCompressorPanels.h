@@ -838,8 +838,6 @@ public:
             drawBandMeter(g, i);
         }
 
-        // Note: Crossover faders now draw their own frequency labels
-
         // Draw selected band indicator - tab style with color underline
         drawBandIndicator(g);
     }
@@ -1212,8 +1210,6 @@ public:
     StudioVCAPanel(juce::AudioProcessorValueTreeState& apvts)
         : parameters(apvts)
     {
-        // Note: Look and feel is now set externally by the editor for consistency
-
         // Threshold control (-40 to +20 dB)
         addAndMakeVisible(thresholdSlider);
         thresholdSlider.setSliderStyle(juce::Slider::RotaryVerticalDrag);

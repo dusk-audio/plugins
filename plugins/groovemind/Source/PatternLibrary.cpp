@@ -74,8 +74,6 @@ bool PatternLibrary::loadFromDirectory(const juce::File& directory)
 //==============================================================================
 bool PatternLibrary::loadFromBinaryData(const void* /*data*/, size_t /*size*/)
 {
-    // TODO: Implement loading from embedded binary resources
-    // This will be used for the final plugin distribution
     return false;
 }
 

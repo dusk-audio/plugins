@@ -132,7 +132,7 @@ MultiQEditor::MultiQEditor(MultiQ& p)
     hqButton->setTooltip("Enable oversampling for analog-matched response at high frequencies");
     hqButton->setVisible(false);  // Replaced by oversamplingSelector
     addAndMakeVisible(hqButton.get());
-    // Note: hqEnabled is now a Choice parameter, not Bool - no ButtonAttachment
+    // hqEnabled is a Choice parameter (not Bool) - no ButtonAttachment
 
     // Linear Phase controls (Digital mode only)
     linearPhaseButton = std::make_unique<juce::ToggleButton>("Linear Phase");
@@ -427,7 +427,7 @@ MultiQEditor::MultiQEditor(MultiQ& p)
     tubeHqButton->setTooltip("Enable oversampling for high-quality processing");
     tubeHqButton->setVisible(false);
     addAndMakeVisible(tubeHqButton.get());
-    // Note: hqEnabled is now a Choice parameter, not Bool - no ButtonAttachment
+    // hqEnabled is a Choice parameter (not Bool) - no ButtonAttachment
 
     // Tube mode curve collapse button
     pultecCurveCollapseButton.setButtonText("Hide Graph");
