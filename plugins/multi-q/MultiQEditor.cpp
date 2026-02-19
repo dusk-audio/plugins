@@ -88,8 +88,8 @@ MultiQEditor::MultiQEditor(MultiQ& p)
     addAndMakeVisible(qSlider.get());
 
     slopeSelector = std::make_unique<juce::ComboBox>();
-    slopeSelector->addItemList({"6 dB/oct", "12 dB/oct", "18 dB/oct", "24 dB/oct", "36 dB/oct", "48 dB/oct"}, 1);
-    slopeSelector->setTooltip("Filter slope: Steeper = sharper cutoff");
+    slopeSelector->addItemList({"6 dB/oct", "12 dB/oct", "18 dB/oct", "24 dB/oct", "36 dB/oct", "48 dB/oct", "72 dB/oct", "96 dB/oct"}, 1);
+    slopeSelector->setTooltip("Filter slope: Steeper = sharper cutoff (6-96 dB/octave)");
     addAndMakeVisible(slopeSelector.get());
     slopeSelector->setVisible(false);  // Only show for HPF/LPF
 
@@ -164,8 +164,8 @@ MultiQEditor::MultiQEditor(MultiQ& p)
 
     qCoupleModeSelector = std::make_unique<juce::ComboBox>();
     qCoupleModeSelector->addItemList({"Q-Couple: Off", "Proportional", "Light", "Medium", "Strong",
-                                       "Asym Light", "Asym Medium", "Asym Strong"}, 1);
-    qCoupleModeSelector->setTooltip("Automatic Q adjustment based on gain changes");
+                                       "Asym Light", "Asym Medium", "Asym Strong", "Vintage"}, 1);
+    qCoupleModeSelector->setTooltip("Q-Coupling: Automatically widens Q when gain increases for natural-sounding EQ curves");
     addAndMakeVisible(qCoupleModeSelector.get());
     qCoupleModeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(
         processor.parameters, ParamIDs::qCoupleMode, *qCoupleModeSelector);
@@ -173,10 +173,53 @@ MultiQEditor::MultiQEditor(MultiQ& p)
     // EQ Type selector (Digital includes per-band dynamics capability)
     eqTypeSelector = std::make_unique<juce::ComboBox>();
     eqTypeSelector->addItemList({"Digital", "British", "Tube"}, 1);
-    eqTypeSelector->setTooltip("EQ algorithm style");
+    eqTypeSelector->setTooltip("EQ mode: Digital (modern parametric), British (SSL 4000 console), Tube (Pultec EQP-1A)");
     addAndMakeVisible(eqTypeSelector.get());
     eqTypeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(
         processor.parameters, ParamIDs::eqType, *eqTypeSelector);
+
+    // Cross-mode transfer button (transfers British/Tube curve to Digital mode bands)
+    transferToDigitalButton.setTooltip("Transfer current EQ curve to Digital mode bands");
+    transferToDigitalButton.onClick = [this]() { processor.transferCurrentEQToDigital(); };
+    addAndMakeVisible(transferToDigitalButton);
+
+    // EQ Match buttons (Digital mode — capture reference/source spectra and apply match)
+    eqMatchRefButton.setTooltip("Capture current analyzer spectrum as the reference (what you want to sound like)");
+    eqMatchRefButton.setColour(juce::TextButton::buttonColourId, juce::Colour(0xff3a5a4a));
+    eqMatchRefButton.onClick = [this]() {
+        processor.captureMatchReference();
+        eqMatchRefButton.setButtonText("Ref \u2713");
+        if (processor.hasMatchSource())
+            eqMatchApplyButton.setEnabled(true);
+    };
+    addAndMakeVisible(eqMatchRefButton);
+
+    eqMatchSrcButton.setTooltip("Capture current analyzer spectrum as the source (what your signal sounds like)");
+    eqMatchSrcButton.setColour(juce::TextButton::buttonColourId, juce::Colour(0xff3a4a5a));
+    eqMatchSrcButton.onClick = [this]() {
+        processor.captureMatchSource();
+        eqMatchSrcButton.setButtonText("Src \u2713");
+        if (processor.hasMatchReference())
+            eqMatchApplyButton.setEnabled(true);
+    };
+    addAndMakeVisible(eqMatchSrcButton);
+
+    eqMatchApplyButton.setTooltip("Compute and apply EQ match (fits bands 2-7 to match reference)");
+    eqMatchApplyButton.setColour(juce::TextButton::buttonColourId, juce::Colour(0xff6a4a3a));
+    eqMatchApplyButton.setEnabled(false);  // Disabled until both captures are done
+    eqMatchApplyButton.onClick = [this]() {
+        int bandsUsed = processor.computeEQMatch();
+        if (bandsUsed > 0)
+        {
+            processor.applyEQMatch();
+            // Reset state for next match
+            processor.clearEQMatch();
+            eqMatchRefButton.setButtonText("Capture Ref");
+            eqMatchSrcButton.setButtonText("Capture Src");
+            eqMatchApplyButton.setEnabled(false);
+        }
+    };
+    addAndMakeVisible(eqMatchApplyButton);
 
     // Factory preset selector (Digital mode)
     presetSelector = std::make_unique<juce::ComboBox>();
@@ -336,6 +379,10 @@ MultiQEditor::MultiQEditor(MultiQ& p)
         britishCurveCollapsed = !britishCurveCollapsed;
         britishCurveCollapseButton.setButtonText(britishCurveCollapsed ? "Show Graph" : "Hide Graph");
 
+        // Sync collapse state to Tube mode
+        pultecCurveCollapsed = britishCurveCollapsed;
+        pultecCurveCollapseButton.setButtonText(pultecCurveCollapsed ? "Show Graph" : "Hide Graph");
+
         // Toggle curve display visibility
         if (britishCurveDisplay)
             britishCurveDisplay->setVisible(!britishCurveCollapsed && isBritishMode);
@@ -446,7 +493,11 @@ MultiQEditor::MultiQEditor(MultiQ& p)
         pultecCurveCollapsed = !pultecCurveCollapsed;
         tubeCurveCollapseButton.setButtonText(pultecCurveCollapsed ? "Show Graph" : "Hide Graph");
 
-        // Toggle curve display visibility
+        // Sync collapse state to British mode
+        britishCurveCollapsed = pultecCurveCollapsed;
+        britishCurveCollapseButton.setButtonText(britishCurveCollapsed ? "Show Graph" : "Hide Graph");
+
+
         if (pultecCurveDisplay)
             pultecCurveDisplay->setVisible(!pultecCurveCollapsed && isPultecMode);
 
@@ -484,10 +535,10 @@ MultiQEditor::MultiQEditor(MultiQ& p)
     updateEQModeVisibility();
 
     // Initialize resizable UI using shared helper (handles size persistence)
-    // Default: 950x700, Min: 950x550, Max: 1600x1200
+    // Default: 950x700, Min: 950x550, Max: 3840x2160 (supports up to 4K displays)
     // Minimum width 950px prevents toolbar control overlap in Digital mode
     // (left controls end at x=365, right controls need ~536px from right edge)
-    resizeHelper.initialize(this, &processor, 950, 700, 950, 550, 1600, 1200, false);
+    resizeHelper.initialize(this, &processor, 950, 700, 950, 550, 3840, 2160, false);
     setSize(resizeHelper.getStoredWidth(), resizeHelper.getStoredHeight());
 
     // Enable keyboard focus for shortcuts (1-8 select bands, D toggle dynamics, etc.)
@@ -1319,10 +1370,10 @@ bool MultiQEditor::keyPressed(const juce::KeyPress& key)
         auto* param = processor.parameters.getParameter(ParamIDs::qCoupleMode);
         if (param)
         {
-            // 8 modes: Off, Proportional, Light, Medium, Strong, Asym Light, Asym Medium, Asym Strong
-            int currentMode = static_cast<int>(param->getValue() * 7.0f + 0.5f);
-            int nextMode = (currentMode + 1) % 8;
-            param->setValueNotifyingHost(nextMode / 7.0f);
+            // 9 modes: Off, Proportional, Light, Medium, Strong, Asym Light, Asym Medium, Asym Strong, Vintage
+            int currentMode = static_cast<int>(param->getValue() * 8.0f + 0.5f);
+            int nextMode = (currentMode + 1) % 9;
+            param->setValueNotifyingHost(nextMode / 8.0f);
         }
         return true;
     }
@@ -1338,6 +1389,13 @@ bool MultiQEditor::keyPressed(const juce::KeyPress& key)
             int nextMode = (currentMode + 1) % 5;
             param->setValueNotifyingHost(nextMode / 4.0f);
         }
+        return true;
+    }
+
+    // Cmd+0: Reset window to default size
+    if (key == juce::KeyPress('0', juce::ModifierKeys::commandModifier, 0))
+    {
+        setSize(950, 700);
         return true;
     }
 
@@ -1755,29 +1813,45 @@ void MultiQEditor::setupBritishControls()
 
     // HPF/LPF
     setupBritishKnob(britishHpfFreqSlider, "hpf_freq", false, filterColor);
+    britishHpfFreqSlider->setTooltip("High-pass filter frequency (18 dB/oct)");
     setupBritishButton(britishHpfEnableButton, "IN");
+    britishHpfEnableButton->setTooltip("Enable high-pass filter");
     setupBritishKnob(britishLpfFreqSlider, "lpf_freq", false, filterColor);
+    britishLpfFreqSlider->setTooltip("Low-pass filter frequency (12 dB/oct)");
     setupBritishButton(britishLpfEnableButton, "IN");
+    britishLpfEnableButton->setTooltip("Enable low-pass filter");
 
     // LF Band
     setupBritishKnob(britishLfGainSlider, "lf_gain", true, gainColor);
+    britishLfGainSlider->setTooltip("Low frequency gain (-24 to +24 dB)");
     setupBritishKnob(britishLfFreqSlider, "lf_freq", false, freqColor);
+    britishLfFreqSlider->setTooltip("Low frequency center/corner frequency");
     setupBritishButton(britishLfBellButton, "BELL");
+    britishLfBellButton->setTooltip("Toggle between shelf and bell (peaking) shape");
 
     // LM Band (orange/goldenrod like 4K-EQ LMF section)
     setupBritishKnob(britishLmGainSlider, "lmf_gain", true, juce::Colour(0xffff8c00));
+    britishLmGainSlider->setTooltip("Low-mid frequency gain (-24 to +24 dB)");
     setupBritishKnob(britishLmFreqSlider, "lmf_freq", false, juce::Colour(0xffdaa520));
+    britishLmFreqSlider->setTooltip("Low-mid frequency center frequency");
     setupBritishKnob(britishLmQSlider, "lmf_q", false, qColor);
+    britishLmQSlider->setTooltip("Low-mid Q: Higher = narrower bandwidth");
 
     // HM Band (green/cyan like 4K-EQ HMF section)
     setupBritishKnob(britishHmGainSlider, "hmf_gain", true, juce::Colour(0xff28a745));
+    britishHmGainSlider->setTooltip("High-mid frequency gain (-24 to +24 dB)");
     setupBritishKnob(britishHmFreqSlider, "hmf_freq", false, juce::Colour(0xff20b2aa));
+    britishHmFreqSlider->setTooltip("High-mid frequency center frequency");
     setupBritishKnob(britishHmQSlider, "hmf_q", false, qColor);
+    britishHmQSlider->setTooltip("High-mid Q: Higher = narrower bandwidth");
 
     // HF Band (blue tones like 4K-EQ HF section)
     setupBritishKnob(britishHfGainSlider, "hf_gain", true, juce::Colour(0xff4169e1));
+    britishHfGainSlider->setTooltip("High frequency gain (-24 to +24 dB)");
     setupBritishKnob(britishHfFreqSlider, "hf_freq", false, juce::Colour(0xff6495ed));
+    britishHfFreqSlider->setTooltip("High frequency center/corner frequency");
     setupBritishButton(britishHfBellButton, "BELL");
+    britishHfBellButton->setTooltip("Toggle between shelf and bell (peaking) shape");
 
     // Global British controls - Brown/Black toggle button with color and text
     britishModeButton = std::make_unique<juce::TextButton>("Brown");
@@ -1813,8 +1887,11 @@ void MultiQEditor::setupBritishControls()
     addAndMakeVisible(britishModeButton.get());
 
     setupBritishKnob(britishSaturationSlider, "saturation", false, satColor);
+    britishSaturationSlider->setTooltip("Console saturation: Adds harmonic distortion and warmth");
     setupBritishKnob(britishInputGainSlider, "input_gain", true, ioColor);
+    britishInputGainSlider->setTooltip("Input gain: Drive into the EQ circuit (-24 to +24 dB)");
     setupBritishKnob(britishOutputGainSlider, "output_gain", true, ioColor);
+    britishOutputGainSlider->setTooltip("Output gain: Final level adjustment (-24 to +24 dB)");
 
     // Section labels (4K-EQ style)
     auto setupSectionLabel = [this](juce::Label& label, const juce::String& text) {
@@ -2163,8 +2240,10 @@ void MultiQEditor::layoutUnifiedToolbar()
         tubeAbButton.setVisible(true);
         tubePresetSelector.setBounds(48, toolbarY, 150, controlHeight);
         tubePresetSelector.setVisible(true);
-        tubeCurveCollapseButton.setBounds(203, toolbarY, 85, controlHeight);
-        tubeCurveCollapseButton.setVisible(true);
+        pultecCurveCollapseButton.setBounds(203, toolbarY, 85, controlHeight);
+        pultecCurveCollapseButton.setVisible(true);
+        transferToDigitalButton.setBounds(293, toolbarY, 130, controlHeight);
+        transferToDigitalButton.setVisible(true);
 
         // Auto Gain button - show on right side of toolbar (consistent across all modes)
         int rightSectionEnd = getWidth() - scaleOffset - 5;
@@ -2180,6 +2259,9 @@ void MultiQEditor::layoutUnifiedToolbar()
         savePresetButton.setVisible(false);
         undoButton.setVisible(false);
         redoButton.setVisible(false);
+        eqMatchRefButton.setVisible(false);
+        eqMatchSrcButton.setVisible(false);
+        eqMatchApplyButton.setVisible(false);
 
         // Hide British-specific controls
         britishAbButton.setVisible(false);
@@ -2197,6 +2279,8 @@ void MultiQEditor::layoutUnifiedToolbar()
         britishPresetSelector.setVisible(true);
         britishCurveCollapseButton.setBounds(203, toolbarY, 85, controlHeight);
         britishCurveCollapseButton.setVisible(true);
+        transferToDigitalButton.setBounds(293, toolbarY, 130, controlHeight);
+        transferToDigitalButton.setVisible(true);
 
         // British-specific: Brown/Black mode toggle with text and color
         britishModeButton->setBounds(getWidth() - 400, toolbarY, 70, controlHeight);
@@ -2216,6 +2300,9 @@ void MultiQEditor::layoutUnifiedToolbar()
         savePresetButton.setVisible(false);
         undoButton.setVisible(false);
         redoButton.setVisible(false);
+        eqMatchRefButton.setVisible(false);
+        eqMatchSrcButton.setVisible(false);
+        eqMatchApplyButton.setVisible(false);
 
         // Hide Tube-specific controls
         tubeAbButton.setVisible(false);
@@ -2234,6 +2321,15 @@ void MultiQEditor::layoutUnifiedToolbar()
         savePresetButton.setVisible(false);
         undoButton.setVisible(false);
         redoButton.setVisible(false);
+        transferToDigitalButton.setVisible(false);
+
+        // EQ Match buttons (after preset selector)
+        eqMatchRefButton.setBounds(203, toolbarY, 85, controlHeight);
+        eqMatchRefButton.setVisible(true);
+        eqMatchSrcButton.setBounds(293, toolbarY, 80, controlHeight);
+        eqMatchSrcButton.setVisible(true);
+        eqMatchApplyButton.setBounds(378, toolbarY, 70, controlHeight);
+        eqMatchApplyButton.setVisible(true);
 
         // Digital-specific right section (before shared right controls)
         int rightSectionEnd = getWidth() - scaleOffset - 5;
@@ -2721,25 +2817,36 @@ void MultiQEditor::setupPultecControls()
 
     // LF Section
     setupPultecKnob(pultecLfBoostSlider, "lf_boost");
+    pultecLfBoostSlider->setTooltip("Low frequency boost (resonant LC network)");
     setupPultecSelector(pultecLfFreqSelector);
     pultecLfFreqSelector->addItemList({"20 Hz", "30 Hz", "60 Hz", "100 Hz"}, 1);
+    pultecLfFreqSelector->setTooltip("Low frequency boost center frequency");
     setupPultecKnob(pultecLfAttenSlider, "lf_atten");
+    pultecLfAttenSlider->setTooltip("Low frequency attenuation (shelf, below boost frequency)");
 
     // HF Boost Section
     setupPultecKnob(pultecHfBoostSlider, "hf_boost");
+    pultecHfBoostSlider->setTooltip("High frequency boost (inductor-coupled)");
     setupPultecSelector(pultecHfBoostFreqSelector);
     pultecHfBoostFreqSelector->addItemList({"3k", "4k", "5k", "8k", "10k", "12k", "16k"}, 1);
+    pultecHfBoostFreqSelector->setTooltip("High frequency boost center frequency");
     setupPultecKnob(pultecHfBandwidthSlider, "hf_bandwidth");
+    pultecHfBandwidthSlider->setTooltip("High frequency boost bandwidth (sharp to broad)");
 
     // HF Atten Section
     setupPultecKnob(pultecHfAttenSlider, "hf_atten");
+    pultecHfAttenSlider->setTooltip("High frequency attenuation (shelf cut)");
     setupPultecSelector(pultecHfAttenFreqSelector);
     pultecHfAttenFreqSelector->addItemList({"5k", "10k", "20k"}, 1);
+    pultecHfAttenFreqSelector->setTooltip("High frequency attenuation corner frequency");
 
     // Global controls
     setupPultecKnob(pultecInputGainSlider, "input");
+    pultecInputGainSlider->setTooltip("Input gain into the Pultec circuit");
     setupPultecKnob(pultecOutputGainSlider, "output");
+    pultecOutputGainSlider->setTooltip("Output gain level");
     setupPultecKnob(pultecTubeDriveSlider, "tube_drive");
+    pultecTubeDriveSlider->setTooltip("Tube drive: 12AX7 saturation and harmonic warmth");
 
     // Mid Section controls
     // Mid Enabled button (IN button) - bypasses the Mid Dip/Peak section only
@@ -2763,8 +2870,10 @@ void MultiQEditor::setupPultecControls()
     pultecMidLowFreqSelector->addItem("500 Hz", 3);
     pultecMidLowFreqSelector->addItem("700 Hz", 4);
     pultecMidLowFreqSelector->addItem("1.0 kHz", 5);
+    pultecMidLowFreqSelector->setTooltip("Mid low peak frequency");
 
     setupPultecKnob(pultecMidLowPeakSlider, "mid_low_peak");
+    pultecMidLowPeakSlider->setTooltip("Mid low peak boost amount");
 
     setupMidFreqSelector(pultecMidDipFreqSelector);
     pultecMidDipFreqSelector->addItem("200 Hz", 1);
@@ -2774,8 +2883,10 @@ void MultiQEditor::setupPultecControls()
     pultecMidDipFreqSelector->addItem("1.0 kHz", 5);
     pultecMidDipFreqSelector->addItem("1.5 kHz", 6);
     pultecMidDipFreqSelector->addItem("2.0 kHz", 7);
+    pultecMidDipFreqSelector->setTooltip("Mid dip center frequency");
 
     setupPultecKnob(pultecMidDipSlider, "mid_dip");
+    pultecMidDipSlider->setTooltip("Mid dip cut amount");
 
     setupMidFreqSelector(pultecMidHighFreqSelector);
     pultecMidHighFreqSelector->addItem("1.5 kHz", 1);
@@ -2783,8 +2894,10 @@ void MultiQEditor::setupPultecControls()
     pultecMidHighFreqSelector->addItem("3.0 kHz", 3);
     pultecMidHighFreqSelector->addItem("4.0 kHz", 4);
     pultecMidHighFreqSelector->addItem("5.0 kHz", 5);
+    pultecMidHighFreqSelector->setTooltip("Mid high peak frequency");
 
     setupPultecKnob(pultecMidHighPeakSlider, "mid_high_peak");
+    pultecMidHighPeakSlider->setTooltip("Mid high peak boost amount");
 
     // Section labels (light gray on dark background)
     auto setupSectionLabel = [this](juce::Label& label, const juce::String& text) {
@@ -3362,6 +3475,7 @@ void MultiQEditor::setupDynamicControls()
 
     // Threshold slider (-60 to +12 dB)
     setupDynSlider(dynThresholdSlider, "dyn_threshold", " dB", -60.0, 12.0, 0.0);
+    dynThresholdSlider->setTooltip("Dynamics threshold: Level above which gain reduction begins");
     dynThresholdSlider->textFromValueFunction = [](double value) {
         juce::String sign = value >= 0 ? "+" : "";
         return sign + juce::String(value, 1) + " dB";
@@ -3369,14 +3483,17 @@ void MultiQEditor::setupDynamicControls()
 
     // Attack slider (0.1 to 500 ms)
     setupDynSlider(dynAttackSlider, "dyn_attack", " ms", 0.1, 500.0, 10.0);
+    dynAttackSlider->setTooltip("Attack time: How fast the dynamic EQ responds to transients");
     dynAttackSlider->setSkewFactorFromMidPoint(20.0);  // More resolution for fast attacks
 
     // Release slider (10 to 5000 ms)
     setupDynSlider(dynReleaseSlider, "dyn_release", " ms", 10.0, 5000.0, 100.0);
+    dynReleaseSlider->setTooltip("Release time: How fast the dynamic EQ recovers after the signal drops");
     dynReleaseSlider->setSkewFactorFromMidPoint(200.0);  // More resolution for faster releases
 
     // Range slider (0 to 24 dB)
     setupDynSlider(dynRangeSlider, "dyn_range", " dB", 0.0, 24.0, 12.0);
+    dynRangeSlider->setTooltip("Maximum gain change applied by the dynamic EQ");
 
     // Ratio slider (1:1 to 20:1)
     setupDynSlider(dynRatioSlider, "dyn_ratio", ":1", 1.0, 20.0, 4.0);
