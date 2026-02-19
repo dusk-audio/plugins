@@ -13,7 +13,9 @@ enum class BandType
     LowShelf,        // Band 2: Low shelf with Q
     Parametric,      // Bands 3-6: Peaking EQ
     HighShelf,       // Band 7: High shelf with Q
-    LowPass          // Band 8: Variable slope LPF
+    LowPass,         // Band 8: Variable slope LPF
+    Notch,           // Notch/band-reject filter
+    BandPass         // Band-pass filter
 };
 
 // Filter slope options for HPF/LPF (dB/octave)
@@ -24,7 +26,34 @@ enum class FilterSlope
     Slope18dB,      // 3rd order
     Slope24dB,      // 4th order
     Slope36dB,      // 6th order
-    Slope48dB       // 8th order
+    Slope48dB,      // 8th order
+    Slope72dB,      // 12th order
+    Slope96dB       // 16th order
+};
+
+// Butterworth Q factors for multi-stage cascaded filters
+struct ButterworthQ
+{
+    // Q factor for a single second-order section: 1/sqrt(2)
+    static constexpr float value = 0.7071067811865476f;
+
+    // Get the Q factor for a specific stage in a cascaded Butterworth filter.
+    // For single-stage, returns userQ. For multi-stage, returns Butterworth pole Q
+    // scaled by userQ to allow resonance control on top of the cascade.
+    static float getStageQ(int totalSecondOrderStages, int stageIndex, float userQ)
+    {
+        if (totalSecondOrderStages <= 1)
+            return userQ;
+
+        // Butterworth pole angles for Nth order filter
+        // Q_k = 1 / (2 * cos(pi * (2k + 1) / (2N))) for k = 0..N-1
+        int N = totalSecondOrderStages;
+        double angle = juce::MathConstants<double>::pi * (2.0 * stageIndex + 1.0) / (2.0 * N);
+        float poleQ = static_cast<float>(1.0 / (2.0 * std::cos(angle)));
+
+        // Scale by user Q for resonance control (Q=0.707 gives flat Butterworth)
+        return poleQ * (userQ / value);
+    }
 };
 
 // Q-Coupling mode for automatic Q adjustment based on gain
@@ -80,6 +109,7 @@ enum class ProcessingMode
 enum class EQType
 {
     Digital = 0,   // Clean digital EQ with optional per-band dynamics (Multi-Q default)
+    Match,         // Spectrum matching with editable parametric bands
     British,       // 4K EQ style British console EQ
     Tube           // Pultec EQP-1A style tube EQ
 };
@@ -112,15 +142,18 @@ namespace BandColors
 }
 
 // Default band configurations
+// NOTE: Colors are inlined directly (not referencing BandColors namespace) to avoid
+// C++17 static initialization order issues — inline const has unordered dynamic init,
+// which can execute before the non-inline BandColors values are constructed.
 inline const std::array<BandConfig, 8> DefaultBandConfigs = {{
-    { BandType::HighPass,   BandColors::Band1_HPF,       20.0f,    20.0f, 20000.0f, "HPF" },
-    { BandType::LowShelf,   BandColors::Band2_LowShelf, 100.0f,    20.0f, 20000.0f, "Low Shelf" },
-    { BandType::Parametric, BandColors::Band3_Para,     200.0f,    20.0f, 20000.0f, "Para 1" },
-    { BandType::Parametric, BandColors::Band4_Para,     500.0f,    20.0f, 20000.0f, "Para 2" },
-    { BandType::Parametric, BandColors::Band5_Para,    1000.0f,    20.0f, 20000.0f, "Para 3" },
-    { BandType::Parametric, BandColors::Band6_Para,    2000.0f,    20.0f, 20000.0f, "Para 4" },
-    { BandType::HighShelf,  BandColors::Band7_HighShelf, 4000.0f,   20.0f, 20000.0f, "High Shelf" },
-    { BandType::LowPass,    BandColors::Band8_LPF,    20000.0f,    20.0f, 20000.0f, "LPF" }
+    { BandType::HighPass,   juce::Colour(0xFFff5555),    20.0f,    20.0f, 20000.0f, "HPF" },         // Red
+    { BandType::LowShelf,   juce::Colour(0xFFffaa00),   100.0f,    20.0f, 20000.0f, "Low Shelf" },   // Orange
+    { BandType::Parametric, juce::Colour(0xFFffee00),   200.0f,    20.0f, 20000.0f, "Para 1" },      // Yellow
+    { BandType::Parametric, juce::Colour(0xFF88ee44),   500.0f,    20.0f, 20000.0f, "Para 2" },      // Lime
+    { BandType::Parametric, juce::Colour(0xFF00ccff),  1000.0f,    20.0f, 20000.0f, "Para 3" },      // Cyan
+    { BandType::Parametric, juce::Colour(0xFF5588ff),  2000.0f,    20.0f, 20000.0f, "Para 4" },      // Blue
+    { BandType::HighShelf,  juce::Colour(0xFFaa66ff),  4000.0f,    20.0f, 20000.0f, "High Shelf" },  // Purple
+    { BandType::LowPass,    juce::Colour(0xFFff66cc), 20000.0f,    20.0f, 20000.0f, "LPF" }          // Pink
 }};
 
 //==============================================================================
@@ -195,6 +228,8 @@ namespace ParamIDs
     inline juce::String bandGain(int bandNum) { return "band" + juce::String(bandNum) + "_gain"; }
     inline juce::String bandQ(int bandNum) { return "band" + juce::String(bandNum) + "_q"; }
     inline juce::String bandSlope(int bandNum) { return "band" + juce::String(bandNum) + "_slope"; }
+    inline juce::String bandShape(int bandNum) { return "band" + juce::String(bandNum) + "_shape"; }
+    inline juce::String bandChannelRouting(int bandNum) { return "band" + juce::String(bandNum) + "_channel_routing"; }
 
     // Global parameters
     const juce::String masterGain = "master_gain";
@@ -205,6 +240,7 @@ namespace ParamIDs
     const juce::String processingMode = "processing_mode";
     const juce::String qCoupleMode = "q_couple_mode";
     const juce::String eqType = "eq_type";
+    const juce::String matchStrength = "match_strength";
 
     // Analyzer parameters
     const juce::String analyzerEnabled = "analyzer_enabled";
