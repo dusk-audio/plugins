@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.15)
 include(${CMAKE_SOURCE_DIR}/cmake/PluginVersion.cmake)
 
 # Get version from git tag or CI environment (fallback to default version)
-set(MULTIQ_DEFAULT_VERSION "1.0.1")
+set(MULTIQ_DEFAULT_VERSION "0.10.0")
 get_plugin_version("multi-q" MULTIQ_VERSION)
 if(NOT MULTIQ_VERSION OR MULTIQ_VERSION STREQUAL "0.0.0")
     set(MULTIQ_VERSION ${MULTIQ_DEFAULT_VERSION})
@@ -43,20 +43,25 @@ endif()
 # Create plugin target
 juce_add_plugin(MultiQ
     COMPANY_NAME "Dusk Audio"
+    # Note: BUNDLE_ID changed from com.LunaCoAudio.MultiQ due to trademark rebrand.
+    # Existing macOS installs must re-scan plugins in their DAW.
     BUNDLE_ID "com.DuskAudio.MultiQ"
     IS_SYNTH FALSE
     NEEDS_MIDI_INPUT FALSE
     NEEDS_MIDI_OUTPUT FALSE
     IS_MIDI_EFFECT FALSE
-    EDITOR_WANTS_KEYBOARD_FOCUS FALSE
-    COPY_PLUGIN_AFTER_BUILD TRUE
-    PLUGIN_MANUFACTURER_CODE Luna
+    EDITOR_WANTS_KEYBOARD_FOCUS TRUE
+    COPY_PLUGIN_AFTER_BUILD ${DUSK_COPY_AFTER_BUILD}
+    PLUGIN_MANUFACTURER_CODE Dusk
     PLUGIN_CODE MulQ
     FORMATS ${PLUGIN_FORMATS}
+    # Note: LV2URI changed from lunacoaudio.com due to trademark rebrand.
+    # LV2 hosts referencing the old URI will need to re-scan.
     LV2URI "https://dusk-audio.github.io/plugins/multi-q"
     PRODUCT_NAME "Multi-Q"
     DESCRIPTION "Professional 8-band parametric EQ with FFT Analyzer"
     VST3_CAN_REPLACE_VST2 TRUE
+    VST3_AUTO_MANIFEST FALSE
 )
 
 # Generate JuceHeader.h
@@ -102,7 +107,8 @@ target_link_libraries(MultiQ
         juce::juce_dsp
     PUBLIC
         juce::juce_recommended_config_flags
-        juce::juce_recommended_lto_flags
+        # Note: juce_recommended_lto_flags removed - causes Windows CI builds to hang
+        # during vst3_helper moduleinfo.json generation (25+ min with no output)
         juce::juce_recommended_warning_flags
 )
 

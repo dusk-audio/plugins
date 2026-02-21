@@ -3,14 +3,12 @@
 
     PultecLookAndFeel.h
 
-    Vintage Pultec-style Look and Feel for Multi-Q's Tube mode.
+    Pultec-style vintage Look and Feel for Multi-Q's Tube mode.
 
-    Emulates the classic appearance of the Pultec EQP-1A:
     - Cream/ivory colored chassis
     - Large chicken-head style knobs with gold caps
     - Warm brown tones and vintage aesthetics
     - Rotary switch styling for frequency selectors
-    - Tube-era VU meter aesthetics
 
   ==============================================================================
 */
@@ -24,7 +22,7 @@ class PultecLookAndFeel : public juce::LookAndFeel_V4
 public:
     PultecLookAndFeel()
     {
-        // Vintage Pultec color palette
+        // Vintage tube EQ color palette
         chassisColor = juce::Colour(0xfff0e8d8);     // Cream/ivory chassis
         knobBodyColor = juce::Colour(0xff2a2520);    // Dark brown knob body
         knobCapColor = juce::Colour(0xffc4a050);     // Gold/brass cap
@@ -72,7 +70,7 @@ public:
         }
         else
         {
-            // Standard Pultec chicken-head style knob
+            // Standard chicken-head style knob
             drawChickenHeadKnob(g, centreX, centreY, radius, angle, slider, isMouseOver, isDragging);
         }
     }

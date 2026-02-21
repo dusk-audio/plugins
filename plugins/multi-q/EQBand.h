@@ -3,10 +3,6 @@
 #include <JuceHeader.h>
 #include <array>
 
-//==============================================================================
-// Band type definitions for Multi-Q 8-band parametric EQ
-//==============================================================================
-
 enum class BandType
 {
     HighPass = 0,    // Band 1: Variable slope HPF
@@ -31,32 +27,23 @@ enum class FilterSlope
     Slope96dB       // 16th order
 };
 
-// Butterworth Q factors for multi-stage cascaded filters
 struct ButterworthQ
 {
-    // Q factor for a single second-order section: 1/sqrt(2)
-    static constexpr float value = 0.7071067811865476f;
+    static constexpr float value = 0.7071067811865476f;  // 1/sqrt(2)
 
-    // Get the Q factor for a specific stage in a cascaded Butterworth filter.
-    // For single-stage, returns userQ. For multi-stage, returns Butterworth pole Q
-    // scaled by userQ to allow resonance control on top of the cascade.
+    // Q_k = 1 / (2 * cos(pi * (2k+1) / (2N))), scaled by userQ/0.707
     static float getStageQ(int totalSecondOrderStages, int stageIndex, float userQ)
     {
         if (totalSecondOrderStages <= 1)
             return userQ;
-
-        // Butterworth pole angles for Nth order filter
-        // Q_k = 1 / (2 * cos(pi * (2k + 1) / (2N))) for k = 0..N-1
-        int N = totalSecondOrderStages;
-        double angle = juce::MathConstants<double>::pi * (2.0 * stageIndex + 1.0) / (2.0 * N);
+        jassert(stageIndex >= 0 && stageIndex < totalSecondOrderStages);
+        int totalOrder = 2 * totalSecondOrderStages;
+        double angle = juce::MathConstants<double>::pi * (2.0 * stageIndex + 1.0) / (2.0 * totalOrder);
         float poleQ = static_cast<float>(1.0 / (2.0 * std::cos(angle)));
-
-        // Scale by user Q for resonance control (Q=0.707 gives flat Butterworth)
         return poleQ * (userQ / value);
     }
 };
 
-// Q-Coupling mode for automatic Q adjustment based on gain
 enum class QCoupleMode
 {
     Off = 0,
@@ -70,14 +57,12 @@ enum class QCoupleMode
     Vintage             // Power-curve model (German broadcast EQ behavior)
 };
 
-// Analyzer display modes
 enum class AnalyzerMode
 {
     Peak = 0,
     RMS
 };
 
-// Analyzer FFT resolution
 enum class AnalyzerResolution
 {
     Low = 2048,     // Faster, less detail
@@ -85,7 +70,6 @@ enum class AnalyzerResolution
     High = 8192     // Maximum detail, more CPU
 };
 
-// Display scale mode for EQ graphic
 enum class DisplayScaleMode
 {
     Linear12dB = 0,   // ±12 dB range
@@ -95,7 +79,6 @@ enum class DisplayScaleMode
     Warped            // Logarithmic/non-linear scale
 };
 
-// Processing mode
 enum class ProcessingMode
 {
     Stereo = 0,
@@ -105,18 +88,13 @@ enum class ProcessingMode
     Side
 };
 
-// EQ Type - switches between different EQ algorithms/styles
 enum class EQType
 {
     Digital = 0,   // Clean digital EQ with optional per-band dynamics (Multi-Q default)
-    Match,         // Spectrum matching with editable parametric bands
-    British,       // 4K EQ style British console EQ
-    Tube           // Pultec EQP-1A style tube EQ
+    Match = 1,     // Spectrum matching with editable parametric bands
+    British = 2,   // 4K EQ style British console EQ
+    Tube = 3       // Vintage tube EQ
 };
-
-//==============================================================================
-// Band configuration structure
-//==============================================================================
 
 struct BandConfig
 {
@@ -128,7 +106,6 @@ struct BandConfig
     const char* name;
 };
 
-// Band colors - vibrant palette for high visibility (Pro-Q style)
 namespace BandColors
 {
     const juce::Colour Band1_HPF      = juce::Colour(0xFFff5555);  // Red
@@ -141,10 +118,7 @@ namespace BandColors
     const juce::Colour Band8_LPF      = juce::Colour(0xFFff66cc);  // Pink
 }
 
-// Default band configurations
-// NOTE: Colors are inlined directly (not referencing BandColors namespace) to avoid
-// C++17 static initialization order issues — inline const has unordered dynamic init,
-// which can execute before the non-inline BandColors values are constructed.
+// Colors inlined to avoid static init order fiasco with BandColors namespace
 inline const std::array<BandConfig, 8> DefaultBandConfigs = {{
     { BandType::HighPass,   juce::Colour(0xFFff5555),    20.0f,    20.0f, 20000.0f, "HPF" },         // Red
     { BandType::LowShelf,   juce::Colour(0xFFffaa00),   100.0f,    20.0f, 20000.0f, "Low Shelf" },   // Orange
@@ -155,10 +129,6 @@ inline const std::array<BandConfig, 8> DefaultBandConfigs = {{
     { BandType::HighShelf,  juce::Colour(0xFFaa66ff),  4000.0f,    20.0f, 20000.0f, "High Shelf" },  // Purple
     { BandType::LowPass,    juce::Colour(0xFFff66cc), 20000.0f,    20.0f, 20000.0f, "LPF" }          // Pink
 }};
-
-//==============================================================================
-// Q-Coupling utility function
-//==============================================================================
 
 inline float getQCoupledValue(float baseQ, float gainDB, QCoupleMode mode)
 {
@@ -199,30 +169,21 @@ inline float getQCoupledValue(float baseQ, float gainDB, QCoupleMode mode)
             break;
         case QCoupleMode::Vintage:
         {
-            // Power-curve model inspired by German broadcast EQ (Maihak W86) behavior.
-            // Unlike the linear modes, this uses Q_eff = Q_base * (1 + k * |gain|^p)
-            // where small boosts barely affect Q but larger boosts widen significantly,
-            // with diminishing returns at extreme settings — matching vintage hardware.
+            // Maihak W86 style: Q_eff = Q_base * (1 + k * |gain|^p)
             float k = 0.03f;
             float p = 1.5f;
             return baseQ * (1.0f + k * std::pow(absGain, p));
         }
     }
 
-    // Asymmetric: stronger coupling for cuts (negative gain)
     if (asymmetric && gainDB < 0)
         strength *= 1.5f;
 
     return baseQ * (1.0f + strength * absGain);
 }
 
-//==============================================================================
-// Parameter ID helpers
-//==============================================================================
-
 namespace ParamIDs
 {
-    // Band parameters (N = 1-8)
     inline juce::String bandEnabled(int bandNum) { return "band" + juce::String(bandNum) + "_enabled"; }
     inline juce::String bandFreq(int bandNum) { return "band" + juce::String(bandNum) + "_freq"; }
     inline juce::String bandGain(int bandNum) { return "band" + juce::String(bandNum) + "_gain"; }
@@ -231,7 +192,6 @@ namespace ParamIDs
     inline juce::String bandShape(int bandNum) { return "band" + juce::String(bandNum) + "_shape"; }
     inline juce::String bandChannelRouting(int bandNum) { return "band" + juce::String(bandNum) + "_channel_routing"; }
 
-    // Global parameters
     const juce::String masterGain = "master_gain";
     const juce::String bypass = "bypass";
     const juce::String hqEnabled = "hq_enabled";
@@ -242,7 +202,6 @@ namespace ParamIDs
     const juce::String eqType = "eq_type";
     const juce::String matchStrength = "match_strength";
 
-    // Analyzer parameters
     const juce::String analyzerEnabled = "analyzer_enabled";
     const juce::String analyzerPrePost = "analyzer_pre_post";  // 0=post, 1=pre
     const juce::String analyzerMode = "analyzer_mode";         // 0=peak, 1=rms
@@ -250,11 +209,9 @@ namespace ParamIDs
     const juce::String analyzerSmoothing = "analyzer_smoothing";  // 0=off, 1=light, 2=medium, 3=heavy
     const juce::String analyzerDecay = "analyzer_decay";
 
-    // Display parameters
     const juce::String displayScaleMode = "display_scale_mode";
     const juce::String visualizeMasterGain = "visualize_master_gain";
 
-    // British mode (4K-EQ style) parameters
     const juce::String britishHpfFreq = "british_hpf_freq";
     const juce::String britishHpfEnabled = "british_hpf_enabled";
     const juce::String britishLpfFreq = "british_lpf_freq";
@@ -276,7 +233,6 @@ namespace ParamIDs
     const juce::String britishInputGain = "british_input_gain";
     const juce::String britishOutputGain = "british_output_gain";
 
-    // Pultec (Tube) mode parameters
     const juce::String pultecLfBoostGain = "pultec_lf_boost_gain";
     const juce::String pultecLfBoostFreq = "pultec_lf_boost_freq";
     const juce::String pultecLfAttenGain = "pultec_lf_atten_gain";
@@ -289,7 +245,6 @@ namespace ParamIDs
     const juce::String pultecOutputGain = "pultec_output_gain";
     const juce::String pultecTubeDrive = "pultec_tube_drive";
 
-    // Pultec Mid Dip/Peak section parameters
     const juce::String pultecMidEnabled = "pultec_mid_enabled";
     const juce::String pultecMidLowFreq = "pultec_mid_low_freq";
     const juce::String pultecMidLowPeak = "pultec_mid_low_peak";
@@ -298,7 +253,6 @@ namespace ParamIDs
     const juce::String pultecMidHighFreq = "pultec_mid_high_freq";
     const juce::String pultecMidHighPeak = "pultec_mid_high_peak";
 
-    // Dynamic mode per-band parameters (N = 1-8)
     inline juce::String bandDynEnabled(int bandNum) { return "band" + juce::String(bandNum) + "_dyn_enabled"; }
     inline juce::String bandDynThreshold(int bandNum) { return "band" + juce::String(bandNum) + "_dyn_threshold"; }
     inline juce::String bandDynAttack(int bandNum) { return "band" + juce::String(bandNum) + "_dyn_attack"; }
@@ -306,17 +260,13 @@ namespace ParamIDs
     inline juce::String bandDynRange(int bandNum) { return "band" + juce::String(bandNum) + "_dyn_range"; }
     inline juce::String bandDynRatio(int bandNum) { return "band" + juce::String(bandNum) + "_dyn_ratio"; }
 
-    // Global dynamic mode parameters
     const juce::String dynDetectionMode = "dyn_detection_mode";  // 0=Peak, 1=RMS
 
-    // Auto-gain compensation
     const juce::String autoGainEnabled = "auto_gain_enabled";
 
-    // Output limiter
     const juce::String limiterEnabled = "limiter_enabled";
     const juce::String limiterCeiling = "limiter_ceiling";
 
-    // Per-band saturation (Digital mode, bands 2-7)
     inline juce::String bandSatType(int bandNum) { return "band" + juce::String(bandNum) + "_sat_type"; }
     inline juce::String bandSatDrive(int bandNum) { return "band" + juce::String(bandNum) + "_sat_drive"; }
 }

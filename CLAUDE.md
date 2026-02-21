@@ -1,4 +1,4 @@
-# Luna Co. Audio Plugins - Reference Documentation
+# Dusk Audio Plugins - Reference Documentation
 
 ## Quick Reference
 
@@ -11,21 +11,21 @@
 
 ## Project Overview
 
-Professional audio VST3/LV2/AU plugins built with JUCE. Published as "Luna Co. Audio".
+Professional audio VST3/LV2/AU plugins built with JUCE. Published as "Dusk Audio".
 
-**Website**: https://luna-co-software.github.io/lunacoaudio.github.io/
-**Website repo**: `~/projects/lunacoaudio.github.io/`
+**Website**: https://dusk-audio.github.io/
+**Website repo**: `~/projects/dusk-audio.github.io/`
 
 ## Plugins
 
 | Plugin | Slug | Directory | Description |
 |--------|------|-----------|-------------|
-| 4K EQ | `4k-eq` | `plugins/4k-eq/` | SSL 4000 console EQ emulation |
+| 4K EQ | `4k-eq` | `plugins/4k-eq/` | British console EQ inspired by classic 4000-series |
 | Multi-Comp | `multi-comp` | `plugins/multi-comp/` | 8-mode compressor + multiband |
-| TapeMachine | `tapemachine` | `plugins/TapeMachine/` | Studer/Ampex tape emulation |
-| Tape Echo | `tape-echo` | `plugins/tape-echo/` | RE-201 Space Echo style delay |
+| TapeMachine | `tapemachine` | `plugins/TapeMachine/` | Vintage reel-to-reel tape emulation |
+| Tape Echo | `tape-echo` | `plugins/tape-echo/` | Vintage tape echo-style delay |
 | Multi-Q | `multi-q` | `plugins/multi-q/` | Universal EQ (Digital/British/Tube) |
-| SilkVerb | `silkverb` | `plugins/SilkVerb/` | Lexicon-style algorithmic reverb |
+| SilkVerb | `silkverb` | `plugins/SilkVerb/` | Vintage-style algorithmic reverb |
 | Convolution Reverb | `convolution-reverb` | `plugins/convolution-reverb/` | IR-based reverb |
 | Neural Amp | `neural-amp` | `plugins/neural-amp/` | Neural amp modeler (NAM) |
 | GrooveMind | `groovemind` | `plugins/groovemind/` | ML drum generator (future) |
@@ -62,7 +62,7 @@ Professional audio VST3/LV2/AU plugins built with JUCE. Published as "Luna Co. A
 | Multi-Q | `project(MultiQ VERSION X.Y.Z)` (inline) |
 | Others | `<NAME>_DEFAULT_VERSION` |
 
-**Website**: `/home/marc/projects/lunacoaudio.github.io/_data/plugins.yml` - updated automatically by `/release-plugin`
+**Website**: `~/projects/dusk-audio.github.io/_data/plugins.yml` - updated automatically by `/release-plugin`
 
 ## Shared Code (MANDATORY)
 
@@ -87,9 +87,11 @@ Professional audio VST3/LV2/AU plugins built with JUCE. Published as "Luna Co. A
 ```bash
 mkdir -p build && cd build
 cmake ..
-cmake --build . --config Release --target <PluginName>_AU -j8
+# Example: Build MultiComp AU component
+cmake --build . --config Release --target MultiComp_AU -j8
 ```
-JUCE automatically installs the `.component` to `~/Library/Audio/Plug-Ins/Components/`
+
+JUCE automatically installs the `.component` to `~/Library/Audio/Plug-Ins/Components/`.
 
 **Cross-platform (Docker)**: `./docker/build_release.sh <shortcut>`
 
@@ -157,4 +159,4 @@ plugins/
 | Validation fails | Run pluginval locally, check parameters |
 
 ---
-*Luna Co. Audio | CMake + JUCE 7.x | Shared code in `plugins/shared/`*
+*Dusk Audio | CMake + JUCE 7.x | Shared code in `plugins/shared/`*
